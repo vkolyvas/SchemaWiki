@@ -11,8 +11,7 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 
 # MCP imports
-from mcp.server import Server
-from mcp.server.notification_options import NotificationOptions
+from mcp.server import Server, NotificationOptions
 from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 from pydantic import BaseModel
@@ -840,15 +839,22 @@ async def main():
     api_thread = threading.Thread(target=run_api, daemon=True)
     api_thread.start()
 
-    async with stdio_server() as (read_stream, write_stream):
-        await server.run(
-            read_stream,
-            write_stream,
-            server.create_initialization_options(
-                notification_options=NotificationOptions(),
-                capabilities=server.get_capabilities(),
-            ),
-        )
+    # If REST_ONLY mode, just run the API without MCP stdio
+    if os.environ.get("REST_ONLY", "").lower() == "true":
+        print("Running in REST API only mode (no MCP stdio)")
+        # Keep the main thread alive
+        while True:
+            await asyncio.sleep(3600)
+    else:
+        async with stdio_server() as (read_stream, write_stream):
+            await server.run(
+                read_stream,
+                write_stream,
+                server.create_initialization_options(
+                    notification_options=NotificationOptions(),
+                    experimental_capabilities={},
+                ),
+            )
 
 
 if __name__ == "__main__":

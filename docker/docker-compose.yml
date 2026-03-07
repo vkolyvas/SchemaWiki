@@ -46,6 +46,7 @@ services:
       GITHUB_REPO: ${GITHUB_REPO:-}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       WIKI_BRANCH: ${WIKI_BRANCH:-main}
+      REST_ONLY: "true"
     volumes:
       - wikis_data:/data/wikis
     ports:
