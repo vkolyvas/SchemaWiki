@@ -11,7 +11,7 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 
 # MCP imports
-from mcp.server import Server, NotificationOptions
+from mcp.server import NotificationOptions, Server
 from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 from pydantic import BaseModel
