@@ -25,6 +25,11 @@ FEATURES: dict[str, dict] = {}
 WIKI_DATA_PATH = os.environ.get("WIKI_DATA_PATH", "/data/wikis")
 Path(WIKI_DATA_PATH).mkdir(parents=True, exist_ok=True)
 
+# Project configuration
+PROJECT_NAME = os.environ.get("PROJECT_NAME", "SchemaWiki")
+PROJECT_URL = os.environ.get("PROJECT_URL", "")
+PROJECT_GITHUB_URL = os.environ.get("PROJECT_GITHUB_URL", "")
+
 # GitHub repository for wiki uploads (optional)
 GITHUB_REPO = os.environ.get("GITHUB_REPO", "")  # e.g., "owner/repo"
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")  # GitHub token for pushing
@@ -509,10 +514,12 @@ async def push_wiki_to_github(feature_name: str, content: str, fmt: str) -> str:
 def generate_markdown_wiki(feature: dict) -> str:
     """Generate Markdown wiki page with rich context."""
     lines = [
+        f"**[{PROJECT_NAME}](/)** ",
+        "",
         f"# {feature['name']}",
         "",
-        f"**Version:** {feature['version']}",
-        f"**Status:** {feature['status']}",
+        f"**Version:** {feature['version']} ",
+        f"**Status:** {feature['status']} ",
         f"**Created:** {feature.get('created_at', 'N/A')}",
         "",
     ]
@@ -958,7 +965,85 @@ async def download_wiki(name: str, format: str = "markdown"):
 
 @app.get("/health")
 async def health():
-    return {"status": "healthy", "wiki_path": WIKI_DATA_PATH}
+    return {"status": "healthy", "wiki_path": WIKI_DATA_PATH, "project": PROJECT_NAME}
+
+
+def generate_project_wiki() -> str:
+    """Generate project index wiki page."""
+    lines = [
+        f"# {PROJECT_NAME}",
+        "",
+        f"**Total Features:** {len(FEATURES)}",
+        "",
+    ]
+
+    if PROJECT_URL:
+        lines.append(f"**Website:** [{PROJECT_URL}]({PROJECT_URL})")
+        lines.append("")
+
+    if PROJECT_GITHUB_URL:
+        lines.append(f"**GitHub:** [{PROJECT_GITHUB_URL}]({PROJECT_GITHUB_URL})")
+        lines.append("")
+
+    lines.extend([
+        "## All Features",
+        "",
+    ])
+
+    for name, feature in FEATURES.items():
+        why = feature.get("why", "No description")
+        why_short = why[:80] + "..." if len(why) > 80 else why
+        lines.append(f"### [{name}](/wiki/{name})")
+        lines.append(f"_{why_short}_")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+@app.get("/")
+async def project_index():
+    """Project index page."""
+    from fastapi.responses import HTMLResponse
+
+    md = generate_project_wiki()
+    html = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>{PROJECT_NAME} - SchemaWiki</title>
+    <style>
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+            color: #333;
+        }}
+        h1 {{ color: #1a1a1a; border-bottom: 2px solid #0066cc; padding-bottom: 10px; }}
+        h2 {{ color: #2a2a2a; margin-top: 30px; }}
+        h3 a {{ color: #0066cc; text-decoration: none; }}
+        h3 a:hover {{ text-decoration: underline; }}
+        code {{ background: #f4f4f4; padding: 2px 6px; border-radius: 3px; }}
+        pre {{ background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }}
+        blockquote {{ border-left: 4px solid #0066cc; margin: 10px 0; padding-left: 15px; color: #555; }}
+        ul, ol {{ padding-left: 25px; }}
+        li {{ margin: 5px 0; }}
+        strong {{ color: #0066cc; }}
+        hr {{ border: none; border-top: 1px solid #ddd; margin: 30px 0; }}
+        .nav {{ margin-bottom: 20px; }}
+        .nav a {{ margin-right: 15px; color: #0066cc; }}
+    </style>
+</head>
+<body>
+    <div class="nav">
+        <a href="/">Home</a>
+        <a href="/wikis">All Wikis</a>
+    </div>
+    {md_to_html(md)}
+</body>
+</html>"""
+    return HTMLResponse(html)
 
 
 async def main():

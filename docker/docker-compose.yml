@@ -47,6 +47,9 @@ services:
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       WIKI_BRANCH: ${WIKI_BRANCH:-main}
       REST_ONLY: "true"
+      PROJECT_NAME: ${PROJECT_NAME:-SchemaWiki}
+      PROJECT_URL: ${PROJECT_URL:-}
+      PROJECT_GITHUB_URL: ${PROJECT_GITHUB_URL:-}
     volumes:
       - wikis_data:/data/wikis
     ports:
