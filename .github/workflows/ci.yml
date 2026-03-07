@@ -61,10 +61,8 @@ jobs:
           python-version: '3.11'
 
       - name: Install test dependencies
-        run: pip install pytest pydantic fastapi sqlalchemy
-
-      - name: Verify basic imports
         run: |
-          python -c "from pydantic import BaseModel; print('Pydantic OK')"
-          python -c "from fastapi import FastAPI; print('FastAPI OK')"
-          python -c "from sqlalchemy import Column; print('SQLAlchemy OK')"
+          pip install pytest pydantic fastapi sqlalchemy pyyaml
+
+      - name: Run tests
+        run: pytest tests/ -v --tb=short

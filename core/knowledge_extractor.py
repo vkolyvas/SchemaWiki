@@ -14,7 +14,7 @@ class KnowledgeExtractor:
 
     def __init__(self, file_store: Optional[FileStore] = None):
         """Initialize knowledge extractor."""
-        self.file_store = file_store or FileStore()
+        self.file_store = file_store
 
     def extract_from_python(self, code: str) -> dict:
         """Extract API routes, imports, and other patterns from Python code."""
@@ -110,14 +110,20 @@ class KnowledgeExtractor:
         file_pattern = r"[\w/]+\.test\.py|[\w/]+_test\.py|[\w/]+/test_[\w/]+\.py"
         results["test_files"] = re.findall(file_pattern, tests_content)
 
-        # Extract test function names
+        # Extract test function names from code (def test_xxx)
         test_func_pattern = r"def\s+(test_\w+)\s*\(|async\s+def\s+(test_\w+)\s*\("
         for match in re.finditer(test_func_pattern, tests_content):
             results["test_functions"].append(match.group(1) or match.group(2))
 
+        # Extract test function names from markdown lists (- test_xxx)
+        md_test_pattern = r"^\s*-\s+(test_\w+)\s*$"
+        for match in re.finditer(md_test_pattern, tests_content, re.MULTILINE):
+            if match.group(1) not in results["test_functions"]:
+                results["test_functions"].append(match.group(1))
+
         # Extract coverage percentage
-        coverage_pattern = r"(\d+)%\s+coverage"
-        coverage_match = re.search(coverage_pattern, tests_content)
+        coverage_pattern = r"(?:coverage:?\s*)(\d+)%(?:\s+coverage)?"
+        coverage_match = re.search(coverage_pattern, tests_content, re.IGNORECASE)
         if coverage_match:
             results["coverage_percentage"] = int(coverage_match.group(1))
 
@@ -135,6 +141,8 @@ class KnowledgeExtractor:
         extracted_knowledge: dict,
     ) -> None:
         """Update architecture.md with extracted knowledge."""
+        if not self.file_store:
+            return
         existing = self.file_store.read_file(feature_name, FileStore.ARCHITECTURE_FILE) or ""
 
         # Build new content
@@ -163,6 +171,8 @@ class KnowledgeExtractor:
         extracted_knowledge: dict,
     ) -> None:
         """Update api_contracts.yaml with extracted routes."""
+        if not self.file_store:
+            return
         contracts = {
             "routes": [],
             "models": [],
@@ -193,6 +203,8 @@ class KnowledgeExtractor:
         tests_info: dict,
     ) -> None:
         """Update tests.md with test coverage information."""
+        if not self.file_store:
+            return
         existing = self.file_store.read_file(feature_name, FileStore.TESTS_FILE) or ""
 
         new_content = existing.strip()
@@ -219,7 +231,7 @@ class KnowledgeExtractor:
         file_type: str = "python",
     ) -> dict:
         """Extract knowledge and update documentation files."""
-        if not self.file_store.feature_exists(feature_name):
+        if self.file_store and not self.file_store.feature_exists(feature_name):
             raise ValueError(f"Feature '{feature_name}' not found")
 
         if file_type == "python":
