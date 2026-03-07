@@ -22,6 +22,10 @@ app = FastAPI(title="SchemaWiki MCP Server")
 # Store for in-memory feature data
 FEATURES: dict[str, dict] = {}
 
+# Wiki data path - where wikis are saved
+WIKI_DATA_PATH = os.environ.get("WIKI_DATA_PATH", "/data/wikis")
+Path(WIKI_DATA_PATH).mkdir(parents=True, exist_ok=True)
+
 
 class FeatureRecord(BaseModel):
     name: str
@@ -408,8 +412,18 @@ async def generate_wiki(args: dict) -> list[TextContent]:
 
     if fmt == "html":
         wiki = generate_html_wiki(feature)
+        filename = f"{feature_name}.html"
     else:
         wiki = generate_markdown_wiki(feature)
+        filename = f"{feature_name}.md"
+
+    # Save wiki to disk
+    wiki_path = Path(WIKI_DATA_PATH) / filename
+    wiki_path.write_text(wiki)
+
+    # Also save to feature for reference
+    feature["wiki_path"] = str(wiki_path)
+    feature["wiki_format"] = fmt
 
     return [TextContent(type="text", text=wiki)]
 
@@ -673,9 +687,59 @@ async def generate_wiki_api(name: str, format: str = "markdown"):
     return result[0].text
 
 
+@app.get("/wikis")
+async def list_wikis():
+    """List all saved wiki pages."""
+    wikis = []
+    for f in Path(WIKI_DATA_PATH).iterdir():
+        if f.is_file():
+            wikis.append(
+                {
+                    "name": f.stem,
+                    "format": f.suffix[1],
+                    "path": str(f),
+                    "size": f.stat().st_size,
+                    "modified": datetime.fromtimestamp(f.stat().st_mtime).isoformat(),
+                }
+            )
+    return {"wikis": wikis}
+
+
+@app.get("/wikis/{name}")
+async def get_wiki(name: str):
+    """Get a saved wiki page."""
+    # Try markdown first, then html
+    md_path = Path(WIKI_DATA_PATH) / f"{name}.md"
+    html_path = Path(WIKI_DATA_PATH) / f"{name}.html"
+
+    if md_path.exists():
+        return {"name": name, "format": "markdown", "content": md_path.read_text()}
+    elif html_path.exists():
+        return {"name": name, "format": "html", "content": html_path.read_text()}
+    else:
+        raise HTTPException(status_code=404, detail="Wiki not found")
+
+
+@app.get("/wikis/{name}/download")
+async def download_wiki(name: str, format: str = "markdown"):
+    """Download a wiki page file."""
+    if format == "html":
+        filename = f"{name}.html"
+    else:
+        filename = f"{name}.md"
+
+    path = Path(WIKI_DATA_PATH) / filename
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Wiki not found")
+
+    from fastapi.responses import FileResponse
+
+    return FileResponse(path, filename=filename)
+
+
 @app.get("/health")
 async def health():
-    return {"status": "healthy"}
+    return {"status": "healthy", "wiki_path": WIKI_DATA_PATH}
 
 
 async def main():

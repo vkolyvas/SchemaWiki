@@ -41,9 +41,14 @@ services:
       context: ..
       dockerfile: docker/Dockerfile.mcp
     container_name: schemawiki-mcp
+    environment:
+      WIKI_DATA_PATH: /data/wikis
+    volumes:
+      - wikis_data:/data/wikis
     ports:
       - "8081:8081"
 
 volumes:
   features_data:
   postgres_data:
+  wikis_data:

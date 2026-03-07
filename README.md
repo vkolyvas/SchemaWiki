@@ -268,7 +268,39 @@ The MCP server also exposes REST endpoints on port 8081:
 | `/steps` | POST | Record step |
 | `/events` | POST | Record event |
 | `/features/{name}` | GET | Get feature |
-| `/wiki/{name}` | GET | Generate wiki |
+| `/wiki/{name}` | GET | Generate wiki (saves to disk) |
+| `/wikis` | GET | List all saved wikis |
+| `/wikis/{name}` | GET | Get saved wiki content |
+| `/wikis/{name}/download` | GET | Download wiki file |
+
+### Accessing Wiki Pages
+
+Wikis are saved to `/data/wikis/` (or `WIKI_DATA_PATH` env var). Humans can access them via:
+
+1. **REST API** (http://localhost:8081):
+   ```bash
+   # List all wikis
+   curl http://localhost:8081/wikis
+
+   # Get wiki content
+   curl http://localhost:8081/wikis/user-auth
+
+   # Download as file
+   curl http://localhost:8081/wikis/user-auth/download -o user-auth.md
+   ```
+
+2. **Direct File Access** (Docker):
+   ```bash
+   # Mounted volume location
+   docker volume ls | grep wikis
+   docker run --rm -it -v schemawiki_wikis_data:/data/wikis alpine cat /data/wikis/user-auth.md
+   ```
+
+3. **Browser** (if serving static files):
+   - Markdown: View raw file at `/wikis/{name}`
+   - HTML: Generate with `format=html` parameter
+
+The wiki path is returned in the response and stored in the feature's `wiki_path` field.
 
 ### Configuration for Claude Code
 
