@@ -1,9 +1,10 @@
 """Replay engine for generating replay_protocol.json from feature files."""
 
 import json
-import yaml
-from typing import Optional
 from pathlib import Path
+from typing import Optional
+
+import yaml
 
 from storage.file_store import FileStore
 
@@ -26,16 +27,12 @@ class ReplayEngine:
 
         # Read source files
         plan = self.file_store.read_file(feature_name, FileStore.PLAN_FILE) or ""
-        implementation = self.file_store.read_file(
-            feature_name, FileStore.IMPLEMENTATION_FILE
-        ) or ""
+        implementation = (
+            self.file_store.read_file(feature_name, FileStore.IMPLEMENTATION_FILE) or ""
+        )
         agent_steps = self.file_store.read_agent_steps(feature_name) or []
-        architecture = self.file_store.read_file(
-            feature_name, FileStore.ARCHITECTURE_FILE
-        ) or ""
-        api_contracts = self.file_store.read_file(
-            feature_name, FileStore.API_CONTRACTS_FILE
-        ) or ""
+        architecture = self.file_store.read_file(feature_name, FileStore.ARCHITECTURE_FILE) or ""
+        api_contracts = self.file_store.read_file(feature_name, FileStore.API_CONTRACTS_FILE) or ""
         tests = self.file_store.read_file(feature_name, FileStore.TESTS_FILE) or ""
 
         # Extract steps
@@ -48,37 +45,32 @@ class ReplayEngine:
             "plan": {
                 "content": plan,
                 "file_path": str(
-                    self.file_store.get_feature_path(feature_name)
-                    / FileStore.PLAN_FILE
+                    self.file_store.get_feature_path(feature_name) / FileStore.PLAN_FILE
                 ),
             },
             "implementation": {
                 "content": implementation,
                 "file_path": str(
-                    self.file_store.get_feature_path(feature_name)
-                    / FileStore.IMPLEMENTATION_FILE
+                    self.file_store.get_feature_path(feature_name) / FileStore.IMPLEMENTATION_FILE
                 ),
             },
             "steps": steps,
             "architecture": {
                 "content": architecture,
                 "file_path": str(
-                    self.file_store.get_feature_path(feature_name)
-                    / FileStore.ARCHITECTURE_FILE
+                    self.file_store.get_feature_path(feature_name) / FileStore.ARCHITECTURE_FILE
                 ),
             },
             "api_contracts": {
                 "content": api_contracts,
                 "file_path": str(
-                    self.file_store.get_feature_path(feature_name)
-                    / FileStore.API_CONTRACTS_FILE
+                    self.file_store.get_feature_path(feature_name) / FileStore.API_CONTRACTS_FILE
                 ),
             },
             "tests": {
                 "content": tests,
                 "file_path": str(
-                    self.file_store.get_feature_path(feature_name)
-                    / FileStore.TESTS_FILE
+                    self.file_store.get_feature_path(feature_name) / FileStore.TESTS_FILE
                 ),
             },
         }

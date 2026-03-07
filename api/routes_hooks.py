@@ -2,12 +2,13 @@
 
 import json
 from pathlib import Path
-from fastapi import APIRouter, HTTPException, status, Depends
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from storage import get_db, Feature
+from storage import Feature, get_db
 from storage.file_store import FileStore
-from sqlalchemy import select
 
 router = APIRouter(prefix="/hooks", tags=["hooks"])
 
@@ -33,7 +34,7 @@ async def receive_hook(
     if event_type not in valid_events:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid event type. Must be one of: {valid_events}"
+            detail=f"Invalid event type. Must be one of: {valid_events}",
         )
 
     response = {
@@ -45,14 +46,11 @@ async def receive_hook(
     # Process specific events
     if event_type == "feature_created":
         # Verify feature exists
-        result = await db.execute(
-            select(Feature).where(Feature.name == feature_name)
-        )
+        result = await db.execute(select(Feature).where(Feature.name == feature_name))
         feature = result.scalar_one_or_none()
         if not feature:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Feature '{feature_name}' not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail=f"Feature '{feature_name}' not found"
             )
         response["message"] = f"Event recorded for feature '{feature_name}'"
 
@@ -66,10 +64,13 @@ async def receive_hook(
                 attempt_number = len(existing_logs) + 1
 
                 # Create debug log content
-                log_content = json.dumps({
-                    "event_type": event_type,
-                    "payload": payload or {},
-                }, indent=2)
+                log_content = json.dumps(
+                    {
+                        "event_type": event_type,
+                        "payload": payload or {},
+                    },
+                    indent=2,
+                )
 
                 file_store.add_debug_log(feature_name, attempt_number, log_content)
                 response["debug_log_attempt"] = attempt_number
@@ -77,9 +78,7 @@ async def receive_hook(
     elif event_type == "deploy":
         if feature_name:
             # Update feature status to completed
-            result = await db.execute(
-                select(Feature).where(Feature.name == feature_name)
-            )
+            result = await db.execute(select(Feature).where(Feature.name == feature_name))
             feature = result.scalar_one_or_none()
             if feature:
                 feature.status = "completed"

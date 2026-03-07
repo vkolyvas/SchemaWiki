@@ -1,16 +1,16 @@
 """Feature management business logic."""
 
 import re
-from typing import Optional
 from datetime import datetime
+from typing import Optional
 
-from sqlalchemy import select, delete
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from storage.metadata_db import Feature, FeatureTag, FeatureDependency
 from storage.file_store import FileStore
 from storage.git_repo import GitRepo
+from storage.metadata_db import Feature, FeatureDependency, FeatureTag
 
 
 class FeatureManager:
@@ -32,9 +32,7 @@ class FeatureManager:
     ) -> dict:
         """Create a new feature with versioning."""
         # Check if feature already exists
-        existing = await self.db.execute(
-            select(Feature).where(Feature.name == name)
-        )
+        existing = await self.db.execute(select(Feature).where(Feature.name == name))
         if existing.scalar_one_or_none():
             raise ValueError(f"Feature '{name}' already exists")
 
@@ -65,10 +63,7 @@ class FeatureManager:
         await self.db.refresh(feature)
 
         # Create git commit for the new feature
-        commit_hash = self.git_repo.commit_feature_change(
-            name,
-            f"Create feature {name} v{version}"
-        )
+        commit_hash = self.git_repo.commit_feature_change(name, f"Create feature {name} v{version}")
 
         # Update with commit hash
         feature.last_replay_commit = commit_hash
@@ -96,11 +91,13 @@ class FeatureManager:
         for dep in feature.dependencies:
             to_feature = await self.db.get(Feature, dep.to_feature_id)
             if to_feature:
-                dependencies.append({
-                    "name": to_feature.name,
-                    "version": to_feature.version,
-                    "type": dep.dependency_type,
-                })
+                dependencies.append(
+                    {
+                        "name": to_feature.name,
+                        "version": to_feature.version,
+                        "type": dep.dependency_type,
+                    }
+                )
 
         # Get all files
         all_files = self.file_store.get_all_files(name)
@@ -125,9 +122,7 @@ class FeatureManager:
     ) -> dict:
         """Update feature metadata."""
         result = await self.db.execute(
-            select(Feature)
-            .options(selectinload(Feature.tags))
-            .where(Feature.name == name)
+            select(Feature).options(selectinload(Feature.tags)).where(Feature.name == name)
         )
         feature = result.scalar_one_or_none()
 
@@ -145,9 +140,7 @@ class FeatureManager:
         # Update tags
         if tags is not None:
             # Remove existing tags
-            await self.db.execute(
-                delete(FeatureTag).where(FeatureTag.feature_id == feature.id)
-            )
+            await self.db.execute(delete(FeatureTag).where(FeatureTag.feature_id == feature.id))
             # Add new tags
             for tag in tags:
                 tag_obj = FeatureTag(feature_id=feature.id, tag=tag)
@@ -181,9 +174,7 @@ class FeatureManager:
 
         # Update feature's last replay commit if replay protocol changed
         if filename == FileStore.REPLAY_PROTOCOL_FILE:
-            result = await self.db.execute(
-                select(Feature).where(Feature.name == name)
-            )
+            result = await self.db.execute(select(Feature).where(Feature.name == name))
             feature = result.scalar_one()
             feature.last_replay_commit = commit_hash
             await self.db.commit()
@@ -192,9 +183,7 @@ class FeatureManager:
 
     async def delete_feature(self, name: str) -> None:
         """Delete a feature."""
-        result = await self.db.execute(
-            select(Feature).where(Feature.name == name)
-        )
+        result = await self.db.execute(select(Feature).where(Feature.name == name))
         feature = result.scalar_one_or_none()
 
         if not feature:
@@ -243,9 +232,7 @@ class FeatureManager:
         bump_type: str = "minor",
     ) -> dict:
         """Bump feature version (major, minor, or patch)."""
-        result = await self.db.execute(
-            select(Feature).where(Feature.name == name)
-        )
+        result = await self.db.execute(select(Feature).where(Feature.name == name))
         feature = result.scalar_one_or_none()
 
         if not feature:
@@ -283,12 +270,8 @@ class FeatureManager:
     ) -> dict:
         """Add a dependency between features."""
         # Get both features
-        from_result = await self.db.execute(
-            select(Feature).where(Feature.name == from_feature)
-        )
-        to_result = await self.db.execute(
-            select(Feature).where(Feature.name == to_feature)
-        )
+        from_result = await self.db.execute(select(Feature).where(Feature.name == from_feature))
+        to_result = await self.db.execute(select(Feature).where(Feature.name == to_feature))
 
         from_feat = from_result.scalar_one_or_none()
         to_feat = to_result.scalar_one_or_none()
@@ -350,11 +333,21 @@ class FeatureManager:
             },
             "file_paths": {
                 "plan": str(self.file_store.get_feature_path(feature.name) / FileStore.PLAN_FILE),
-                "implementation": str(self.file_store.get_feature_path(feature.name) / FileStore.IMPLEMENTATION_FILE),
-                "agent_steps": str(self.file_store.get_feature_path(feature.name) / FileStore.AGENT_STEPS_FILE),
-                "replay_protocol": str(self.file_store.get_feature_path(feature.name) / FileStore.REPLAY_PROTOCOL_FILE),
-                "architecture": str(self.file_store.get_feature_path(feature.name) / FileStore.ARCHITECTURE_FILE),
-                "api_contracts": str(self.file_store.get_feature_path(feature.name) / FileStore.API_CONTRACTS_FILE),
+                "implementation": str(
+                    self.file_store.get_feature_path(feature.name) / FileStore.IMPLEMENTATION_FILE
+                ),
+                "agent_steps": str(
+                    self.file_store.get_feature_path(feature.name) / FileStore.AGENT_STEPS_FILE
+                ),
+                "replay_protocol": str(
+                    self.file_store.get_feature_path(feature.name) / FileStore.REPLAY_PROTOCOL_FILE
+                ),
+                "architecture": str(
+                    self.file_store.get_feature_path(feature.name) / FileStore.ARCHITECTURE_FILE
+                ),
+                "api_contracts": str(
+                    self.file_store.get_feature_path(feature.name) / FileStore.API_CONTRACTS_FILE
+                ),
                 "tests": str(self.file_store.get_feature_path(feature.name) / FileStore.TESTS_FILE),
             },
             "debug_logs": debug_logs,

@@ -1,21 +1,21 @@
 """SchemaWiki MCP Server - Record AI agent activities with rich context."""
 
-import os
-import json
 import asyncio
-from pathlib import Path
-from typing import Optional, Any
+import json
+import os
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Optional
 
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
 import uvicorn
+from fastapi import FastAPI, HTTPException
 
 # MCP imports
 from mcp.server import Server
-from mcp.server.stdio import stdio_server
-from mcp.types import Tool, TextContent
 from mcp.server.notification_options import NotificationOptions
+from mcp.server.stdio import stdio_server
+from mcp.types import TextContent, Tool
+from pydantic import BaseModel
 
 app = FastAPI(title="SchemaWiki MCP Server")
 
@@ -35,7 +35,9 @@ class StepRecord(BaseModel):
     feature_name: str
     step: str
     why: Optional[str] = None  # Why this step was taken
-    trigger: Optional[str] = None  # What triggered this (e.g., "user_request", "error", "test_failure")
+    trigger: Optional[str] = (
+        None  # What triggered this (e.g., "user_request", "error", "test_failure")
+    )
     command: Optional[str] = None
     files_modified: list[str] = []
     output: Optional[str] = None
@@ -68,7 +70,11 @@ async def list_tools() -> list[Tool]:
                     "name": {"type": "string", "description": "Feature name"},
                     "description": {"type": "string", "description": "Feature description"},
                     "version": {"type": "string", "description": "Semantic version"},
-                    "tags": {"type": "array", "items": {"type": "string"}, "description": "Feature tags"},
+                    "tags": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Feature tags",
+                    },
                     "plan": {"type": "string", "description": "Initial plan content"},
                     "why": {"type": "string", "description": "Why this feature is being built"},
                 },
@@ -84,11 +90,22 @@ async def list_tools() -> list[Tool]:
                     "feature_name": {"type": "string", "description": "Feature name"},
                     "step": {"type": "string", "description": "Description of the step"},
                     "why": {"type": "string", "description": "Why this step was taken"},
-                    "trigger": {"type": "string", "description": "What triggered this (user_request, error, test_failure, lint_error, missing_code, bug_fix)"},
+                    "trigger": {
+                        "type": "string",
+                        "description": "What triggered this (user_request, error, test_failure, lint_error, missing_code, bug_fix)",
+                    },
                     "command": {"type": "string", "description": "Command executed"},
-                    "files_modified": {"type": "array", "items": {"type": "string"}, "description": "Files modified"},
+                    "files_modified": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Files modified",
+                    },
                     "output": {"type": "string", "description": "Command output"},
-                    "status": {"type": "string", "enum": ["in_progress", "completed", "failed"], "description": "Step status"},
+                    "status": {
+                        "type": "string",
+                        "enum": ["in_progress", "completed", "failed"],
+                        "description": "Step status",
+                    },
                     "context": {"type": "string", "description": "Additional context"},
                 },
                 "required": ["feature_name", "step", "why"],
@@ -101,10 +118,33 @@ async def list_tools() -> list[Tool]:
                 "type": "object",
                 "properties": {
                     "feature_name": {"type": "string", "description": "Feature name"},
-                    "event_type": {"type": "string", "enum": ["feature_coded", "service_restarted", "change_pushed", "missing_code", "lint_error", "test_passed", "test_failed", "bug_fix", "code_review", "refactor", "dependency_added", "config_changed", "api_contract_change", "db_migration"], "description": "Type of event"},
+                    "event_type": {
+                        "type": "string",
+                        "enum": [
+                            "feature_coded",
+                            "service_restarted",
+                            "change_pushed",
+                            "missing_code",
+                            "lint_error",
+                            "test_passed",
+                            "test_failed",
+                            "bug_fix",
+                            "code_review",
+                            "refactor",
+                            "dependency_added",
+                            "config_changed",
+                            "api_contract_change",
+                            "db_migration",
+                        ],
+                        "description": "Type of event",
+                    },
                     "why": {"type": "string", "description": "Why this happened"},
                     "details": {"type": "string", "description": "Event details"},
-                    "files": {"type": "array", "items": {"type": "string"}, "description": "Related files"},
+                    "files": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Related files",
+                    },
                 },
                 "required": ["feature_name", "event_type", "why"],
             },
@@ -131,7 +171,10 @@ async def list_tools() -> list[Tool]:
                     "feature_name": {"type": "string", "description": "Feature name"},
                     "attempt": {"type": "integer", "description": "Attempt number"},
                     "error": {"type": "string", "description": "Error message"},
-                    "why_failed": {"type": "string", "description": "Why it failed (root cause analysis)"},
+                    "why_failed": {
+                        "type": "string",
+                        "description": "Why it failed (root cause analysis)",
+                    },
                     "fix_applied": {"type": "string", "description": "Fix that was applied"},
                     "log": {"type": "string", "description": "Debug log content"},
                 },
@@ -156,7 +199,11 @@ async def list_tools() -> list[Tool]:
                 "type": "object",
                 "properties": {
                     "feature_name": {"type": "string", "description": "Feature name"},
-                    "format": {"type": "string", "enum": ["markdown", "html"], "description": "Output format"},
+                    "format": {
+                        "type": "string",
+                        "enum": ["markdown", "html"],
+                        "description": "Output format",
+                    },
                 },
                 "required": ["feature_name"],
             },
@@ -228,7 +275,9 @@ async def create_feature(args: dict) -> list[TextContent]:
 
     FEATURES[name] = feature
 
-    return [TextContent(type="text", text=json.dumps({"status": "created", "feature": name}, indent=2))]
+    return [
+        TextContent(type="text", text=json.dumps({"status": "created", "feature": name}, indent=2))
+    ]
 
 
 async def record_step(args: dict) -> list[TextContent]:
@@ -257,7 +306,14 @@ async def record_step(args: dict) -> list[TextContent]:
     elif args.get("status") == "failed":
         FEATURES[feature_name]["status"] = "failed"
 
-    return [TextContent(type="text", text=json.dumps({"status": "recorded", "step": len(FEATURES[feature_name]["steps"])}, indent=2))]
+    return [
+        TextContent(
+            type="text",
+            text=json.dumps(
+                {"status": "recorded", "step": len(FEATURES[feature_name]["steps"])}, indent=2
+            ),
+        )
+    ]
 
 
 async def record_event(args: dict) -> list[TextContent]:
@@ -276,7 +332,12 @@ async def record_event(args: dict) -> list[TextContent]:
 
     FEATURES[feature_name]["events"].append(event)
 
-    return [TextContent(type="text", text=json.dumps({"status": "recorded", "event": args.get("event_type")}, indent=2))]
+    return [
+        TextContent(
+            type="text",
+            text=json.dumps({"status": "recorded", "event": args.get("event_type")}, indent=2),
+        )
+    ]
 
 
 async def update_implementation(args: dict) -> list[TextContent]:
@@ -295,7 +356,11 @@ async def update_implementation(args: dict) -> list[TextContent]:
 
     FEATURES[feature_name]["implementation"] += entry
 
-    return [TextContent(type="text", text=json.dumps({"status": "updated", "feature": feature_name}, indent=2))]
+    return [
+        TextContent(
+            type="text", text=json.dumps({"status": "updated", "feature": feature_name}, indent=2)
+        )
+    ]
 
 
 async def add_debug_log(args: dict) -> list[TextContent]:
@@ -315,7 +380,12 @@ async def add_debug_log(args: dict) -> list[TextContent]:
 
     FEATURES[feature_name]["debug_logs"].append(log_entry)
 
-    return [TextContent(type="text", text=json.dumps({"status": "logged", "attempt": log_entry["attempt"]}, indent=2))]
+    return [
+        TextContent(
+            type="text",
+            text=json.dumps({"status": "logged", "attempt": log_entry["attempt"]}, indent=2),
+        )
+    ]
 
 
 async def get_feature(args: dict) -> list[TextContent]:
@@ -357,44 +427,54 @@ def generate_markdown_wiki(feature: dict) -> str:
 
     # WHY this feature exists
     if feature.get("why"):
-        lines.extend([
-            "## Why This Feature Exists",
-            "",
-            feature["why"],
-            "",
-        ])
+        lines.extend(
+            [
+                "## Why This Feature Exists",
+                "",
+                feature["why"],
+                "",
+            ]
+        )
 
     if feature.get("description"):
-        lines.extend([
-            "## Description",
-            "",
-            feature.get("description", "No description provided."),
-            "",
-        ])
+        lines.extend(
+            [
+                "## Description",
+                "",
+                feature.get("description", "No description provided."),
+                "",
+            ]
+        )
 
     if feature.get("tags"):
-        lines.extend([
-            "## Tags",
-            "",
-            ", ".join(f"`{tag}`" for tag in feature["tags"]),
-            "",
-        ])
+        lines.extend(
+            [
+                "## Tags",
+                "",
+                ", ".join(f"`{tag}`" for tag in feature["tags"]),
+                "",
+            ]
+        )
 
     if feature.get("plan"):
-        lines.extend([
-            "## Plan",
-            "",
-            feature["plan"],
-            "",
-        ])
+        lines.extend(
+            [
+                "## Plan",
+                "",
+                feature["plan"],
+                "",
+            ]
+        )
 
     if feature.get("implementation"):
-        lines.extend([
-            "## Implementation",
-            "",
-            feature["implementation"],
-            "",
-        ])
+        lines.extend(
+            [
+                "## Implementation",
+                "",
+                feature["implementation"],
+                "",
+            ]
+        )
 
     # EVENTS - Major things that happened
     if feature.get("events"):
@@ -479,10 +559,12 @@ def generate_markdown_wiki(feature: dict) -> str:
 
     # DEBUG LOGS with root cause analysis
     if feature.get("debug_logs"):
-        lines.extend([
-            "## Debug Logs & Root Cause Analysis",
-            "",
-        ])
+        lines.extend(
+            [
+                "## Debug Logs & Root Cause Analysis",
+                "",
+            ]
+        )
         for log in feature["debug_logs"]:
             lines.append(f"### Attempt {log['attempt']}")
             lines.append("")

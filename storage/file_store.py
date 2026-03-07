@@ -1,10 +1,11 @@
 """Filesystem operations for feature directories."""
 
+import json
 import os
 import shutil
 from pathlib import Path
 from typing import Optional
-import json
+
 import yaml
 
 
@@ -25,6 +26,7 @@ class FileStore:
         """Initialize file store with base path."""
         if base_path is None:
             from storage.metadata_db import get_features_data_path
+
             base_path = get_features_data_path()
         self.base_path = Path(base_path)
         self.base_path.mkdir(parents=True, exist_ok=True)
@@ -114,9 +116,7 @@ class FileStore:
     def write_replay_protocol(self, feature_name: str, protocol: dict) -> Path:
         """Write replay protocol JSON."""
         return self.write_file(
-            feature_name,
-            self.REPLAY_PROTOCOL_FILE,
-            json.dumps(protocol, indent=2)
+            feature_name, self.REPLAY_PROTOCOL_FILE, json.dumps(protocol, indent=2)
         )
 
     def read_replay_protocol(self, feature_name: str) -> Optional[dict]:
@@ -129,9 +129,7 @@ class FileStore:
     def write_agent_steps(self, feature_name: str, steps: list) -> Path:
         """Write agent steps YAML."""
         return self.write_file(
-            feature_name,
-            self.AGENT_STEPS_FILE,
-            yaml.dump(steps, default_flow_style=False)
+            feature_name, self.AGENT_STEPS_FILE, yaml.dump(steps, default_flow_style=False)
         )
 
     def read_agent_steps(self, feature_name: str) -> Optional[list]:
@@ -161,8 +159,7 @@ class FileStore:
 
         logs = []
         for log_file in sorted(debug_dir.glob("attempt_*.log")):
-            logs.append({
-                "attempt": int(log_file.stem.split("_")[1]),
-                "content": log_file.read_text()
-            })
+            logs.append(
+                {"attempt": int(log_file.stem.split("_")[1]), "content": log_file.read_text()}
+            )
         return logs

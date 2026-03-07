@@ -1,10 +1,10 @@
 """Git operations for feature versioning and commit tracking."""
 
 import os
-from pathlib import Path
-from typing import Optional
 import subprocess
 from datetime import datetime
+from pathlib import Path
+from typing import Optional
 
 
 class GitRepo:
@@ -20,11 +20,7 @@ class GitRepo:
             cwd = self.features_path
 
         result = subprocess.run(
-            ["git"] + list(args),
-            cwd=cwd,
-            capture_output=True,
-            text=True,
-            env=self._get_git_env()
+            ["git"] + list(args), cwd=cwd, capture_output=True, text=True, env=self._get_git_env()
         )
 
         if result.returncode != 0:
@@ -46,17 +42,16 @@ class GitRepo:
         if not (self.features_path / ".git").exists():
             self._run_git("init")
             self._run_git("config", "user.name", os.getenv("GIT_AUTHOR_NAME", "SchemaWiki"))
-            self._run_git("config", "user.email", os.getenv("GIT_AUTHOR_EMAIL", "schemawiki@localhost"))
+            self._run_git(
+                "config", "user.email", os.getenv("GIT_AUTHOR_EMAIL", "schemawiki@localhost")
+            )
 
     def is_repo(self) -> bool:
         """Check if features path is a git repo."""
         return (self.features_path / ".git").exists()
 
     def commit_feature_change(
-        self,
-        feature_name: str,
-        message: str,
-        files: Optional[list[str]] = None
+        self, feature_name: str, message: str, files: Optional[list[str]] = None
     ) -> str:
         """Commit changes to a feature."""
         if not self.is_repo():
@@ -107,24 +102,22 @@ class GitRepo:
         try:
             format_str = "%H|%an|%ae|%at|%s"
             output = self._run_git(
-                "log",
-                f"--max-count={max_count}",
-                f"--format={format_str}",
-                "--",
-                str(feature_path)
+                "log", f"--max-count={max_count}", f"--format={format_str}", "--", str(feature_path)
             )
 
             commits = []
             for line in output.split("\n"):
                 if "|" in line:
                     parts = line.split("|")
-                    commits.append({
-                        "hash": parts[0],
-                        "author": parts[1],
-                        "email": parts[2],
-                        "timestamp": int(parts[3]),
-                        "message": parts[4] if len(parts) > 4 else ""
-                    })
+                    commits.append(
+                        {
+                            "hash": parts[0],
+                            "author": parts[1],
+                            "email": parts[2],
+                            "timestamp": int(parts[3]),
+                            "message": parts[4] if len(parts) > 4 else "",
+                        }
+                    )
             return commits
         except RuntimeError:
             return []

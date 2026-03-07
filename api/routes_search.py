@@ -1,12 +1,13 @@
 """Search endpoints for features."""
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from sqlalchemy.orm import selectinload
 import re
 
-from storage import get_db, Feature, FeatureTag
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from storage import Feature, FeatureTag, get_db
 from storage.file_store import FileStore
 
 router = APIRouter(prefix="/search", tags=["search"])
@@ -57,15 +58,23 @@ async def search_features(
                     break
 
         if name_match or desc_match or file_match:
-            search_results.append({
-                "name": feature.name,
-                "version": feature.version,
-                "description": feature.description,
-                "status": feature.status,
-                "tags": [t.tag for t in feature.tags],
-                "match_type": "name" if name_match else ("description" if desc_match else "content"),
-                "preview": file_store_content if file_match else (feature.description[:200] if feature.description else None),
-            })
+            search_results.append(
+                {
+                    "name": feature.name,
+                    "version": feature.version,
+                    "description": feature.description,
+                    "status": feature.status,
+                    "tags": [t.tag for t in feature.tags],
+                    "match_type": (
+                        "name" if name_match else ("description" if desc_match else "content")
+                    ),
+                    "preview": (
+                        file_store_content
+                        if file_match
+                        else (feature.description[:200] if feature.description else None)
+                    ),
+                }
+            )
 
         if len(search_results) >= limit:
             break
@@ -94,5 +103,5 @@ async def semantic_search(
     # This requires sentence-transformers integration (Phase 4)
     raise HTTPException(
         status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Semantic search requires vector embeddings (Phase 4)"
+        detail="Semantic search requires vector embeddings (Phase 4)",
     )

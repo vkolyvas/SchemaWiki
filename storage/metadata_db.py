@@ -1,13 +1,12 @@
 """Database models and connection for SchemaWiki."""
 
 import os
+from datetime import datetime, timezone
 from typing import AsyncGenerator
 
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Table, Text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy import Column, String, Integer, Text, DateTime, ForeignKey, Table
-from sqlalchemy.orm import relationship
-from datetime import datetime, timezone
+from sqlalchemy.orm import DeclarativeBase, relationship
 
 
 def utc_now():
@@ -17,11 +16,13 @@ def utc_now():
 
 class Base(DeclarativeBase):
     """Base class for all database models."""
+
     pass
 
 
 class Feature(Base):
     """Feature model representing a documented feature."""
+
     __tablename__ = "features"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -38,12 +39,13 @@ class Feature(Base):
         "FeatureDependency",
         foreign_keys="FeatureDependency.from_feature_id",
         back_populates="from_feature",
-        cascade="all, delete-orphan"
+        cascade="all, delete-orphan",
     )
 
 
 class FeatureTag(Base):
     """Tags associated with features."""
+
     __tablename__ = "feature_tags"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -55,6 +57,7 @@ class FeatureTag(Base):
 
 class FeatureDependency(Base):
     """Dependencies between features."""
+
     __tablename__ = "feature_dependencies"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -62,7 +65,9 @@ class FeatureDependency(Base):
     to_feature_id = Column(Integer, ForeignKey("features.id", ondelete="CASCADE"), nullable=False)
     dependency_type = Column(String(50), default="required")  # required, optional
 
-    from_feature = relationship("Feature", foreign_keys=[from_feature_id], back_populates="dependencies")
+    from_feature = relationship(
+        "Feature", foreign_keys=[from_feature_id], back_populates="dependencies"
+    )
     to_feature = relationship("Feature", foreign_keys=[to_feature_id])
 
 
@@ -74,8 +79,7 @@ _session_factory = None
 def get_database_url() -> str:
     """Get database URL from environment or use default."""
     return os.getenv(
-        "DATABASE_URL",
-        "postgresql+asyncpg://schemawiki:schemawiki@localhost:5433/schemawiki"
+        "DATABASE_URL", "postgresql+asyncpg://schemawiki:schemawiki@localhost:5433/schemawiki"
     )
 
 
@@ -90,9 +94,7 @@ async def init_db() -> None:
 
     if _engine is None:
         _engine = create_async_engine(get_database_url(), echo=False)
-        _session_factory = async_sessionmaker(
-            _engine, class_=AsyncSession, expire_on_commit=False
-        )
+        _session_factory = async_sessionmaker(_engine, class_=AsyncSession, expire_on_commit=False)
 
     async with _engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

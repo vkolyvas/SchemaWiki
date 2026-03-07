@@ -1,13 +1,13 @@
 """Agent CLI for SchemaWiki."""
 
-import os
-import sys
 import asyncio
 import json
+import os
+import sys
 from typing import Optional
 
-import typer
 import httpx
+import typer
 from rich.console import Console
 from rich.table import Table
 
@@ -75,6 +75,7 @@ def get_plan(
     output: str = typer.Option(None, "--output", "-o", help="Output file for plan"),
 ):
     """Get feature plan."""
+
     async def _get():
         client = get_api_client()
         try:
@@ -108,6 +109,7 @@ def search(
     limit: int = typer.Option(10, "--limit", "-l", help="Max results"),
 ):
     """Search features."""
+
     async def _search():
         client = get_api_client()
         try:
@@ -156,6 +158,7 @@ def recreate(
     include_debug: bool = typer.Option(False, "--debug", "-d", help="Include debug logs"),
 ):
     """Get replay protocol to recreate a feature."""
+
     async def _recreate():
         client = get_api_client()
         try:
@@ -193,6 +196,7 @@ def list_features(
     tag: str = typer.Option(None, "--tag", "-t", help="Filter by tag"),
 ):
     """List all features."""
+
     async def _list():
         client = get_api_client()
         try:

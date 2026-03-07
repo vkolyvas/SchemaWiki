@@ -2,13 +2,14 @@
 
 import os
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from storage import init_db, close_db
 from api.routes_features import router as features_router
-from api.routes_search import router as search_router
 from api.routes_hooks import router as hooks_router
+from api.routes_search import router as search_router
+from storage import close_db, init_db
 
 
 @asynccontextmanager

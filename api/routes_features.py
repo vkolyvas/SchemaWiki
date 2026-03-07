@@ -1,21 +1,22 @@
 """Feature CRUD endpoints."""
 
 from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from storage import get_db
 from core.feature_manager import FeatureManager
 from core.replay_engine import ReplayEngine
 from schemas import (
     FeatureCreate,
-    FeatureUpdate,
-    FeatureFileUpdate,
     FeatureDependencyAdd,
-    FeatureVersionBump,
-    FeatureResponse,
+    FeatureFileUpdate,
     FeatureListItem,
+    FeatureResponse,
+    FeatureUpdate,
+    FeatureVersionBump,
 )
+from storage import get_db
 
 router = APIRouter(prefix="/features", tags=["features"])
 
@@ -152,9 +153,7 @@ async def get_replay_protocol(
     """Get replay protocol for a feature."""
     replay_engine = ReplayEngine()
     try:
-        return replay_engine.generate_replay_protocol(
-            name, include_debug_logs=include_debug_logs
-        )
+        return replay_engine.generate_replay_protocol(name, include_debug_logs=include_debug_logs)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
@@ -167,9 +166,7 @@ async def generate_replay_protocol(
     """Generate and save replay protocol for a feature."""
     replay_engine = ReplayEngine()
     try:
-        path = replay_engine.save_replay_protocol(
-            name, include_debug_logs=include_debug_logs
-        )
+        path = replay_engine.save_replay_protocol(name, include_debug_logs=include_debug_logs)
         return {"status": "generated", "file_path": str(path)}
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))

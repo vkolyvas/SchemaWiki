@@ -1,7 +1,7 @@
 """SchemaWiki Agent Client - Python library for recording agent activities with rich context."""
 
-import os
 import json
+import os
 from typing import Optional
 
 
@@ -285,7 +285,9 @@ class SchemaWikiClient:
         response.raise_for_status()
         return response.text
 
-    def save_wiki(self, filename: str, name: Optional[str] = None, format: str = "markdown") -> None:
+    def save_wiki(
+        self, filename: str, name: Optional[str] = None, format: str = "markdown"
+    ) -> None:
         """Save wiki page to file."""
         wiki = self.get_wiki(name, format)
         with open(filename, "w") as f:

@@ -2,15 +2,15 @@
 
 from schemas.feature_schema import (
     FeatureCreate,
-    FeatureUpdate,
-    FeatureFileUpdate,
     FeatureDependencyAdd,
-    FeatureVersionBump,
-    FeatureResponse,
+    FeatureFileUpdate,
     FeatureListItem,
-    SearchQuery,
+    FeatureResponse,
+    FeatureUpdate,
+    FeatureVersionBump,
     HookEvent,
     ReplayRequest,
+    SearchQuery,
 )
 
 __all__ = [

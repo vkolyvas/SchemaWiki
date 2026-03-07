@@ -1,9 +1,10 @@
 """Knowledge extraction from code and documentation."""
 
 import re
-import yaml
-from typing import Optional
 from pathlib import Path
+from typing import Optional
+
+import yaml
 
 from storage.file_store import FileStore
 
@@ -29,15 +30,19 @@ class KnowledgeExtractor:
         import_pattern = r"^(?:from\s+(\S+)\s+import\s+(.+)|import\s+(\S+))"
         for match in re.finditer(import_pattern, code, re.MULTILINE):
             if match.group(1):
-                results["imports"].append({
-                    "module": match.group(1),
-                    "items": match.group(2).split(", "),
-                })
+                results["imports"].append(
+                    {
+                        "module": match.group(1),
+                        "items": match.group(2).split(", "),
+                    }
+                )
             elif match.group(3):
-                results["imports"].append({
-                    "module": match.group(3),
-                    "items": [],
-                })
+                results["imports"].append(
+                    {
+                        "module": match.group(3),
+                        "items": [],
+                    }
+                )
 
         # Extract API routes
         route_patterns = [
@@ -49,27 +54,33 @@ class KnowledgeExtractor:
                 method = match.group(1)
                 path = match.group(2)
                 handler = match.group(3) if match.lastindex >= 3 else "anonymous"
-                results["api_routes"].append({
-                    "method": method.upper(),
-                    "path": path,
-                    "handler": handler,
-                })
+                results["api_routes"].append(
+                    {
+                        "method": method.upper(),
+                        "path": path,
+                        "handler": handler,
+                    }
+                )
 
         # Extract function definitions
         func_pattern = r"^(?:async\s+)?def\s+(\w+)\s*\(([^)]*)\)"
         for match in re.finditer(func_pattern, code, re.MULTILINE):
-            results["function_definitions"].append({
-                "name": match.group(1),
-                "params": match.group(2).strip(),
-            })
+            results["function_definitions"].append(
+                {
+                    "name": match.group(1),
+                    "params": match.group(2).strip(),
+                }
+            )
 
         # Extract class definitions
         class_pattern = r"^class\s+(\w+)(?:\(([^)]+)\))?:"
         for match in re.finditer(class_pattern, code, re.MULTILINE):
-            results["class_definitions"].append({
-                "name": match.group(1),
-                "base_classes": match.group(2).split(", ") if match.group(2) else [],
-            })
+            results["class_definitions"].append(
+                {
+                    "name": match.group(1),
+                    "base_classes": match.group(2).split(", ") if match.group(2) else [],
+                }
+            )
 
         # Detect SQLAlchemy models
         model_pattern = r"class\s+(\w+)\(.*(?:Base|Model).*\):"
@@ -144,9 +155,7 @@ class KnowledgeExtractor:
             for imp in extracted_knowledge["imports"][:10]:  # Limit to first 10
                 new_content += f"- {imp['module']}\n"
 
-        self.file_store.write_file(
-            feature_name, FileStore.ARCHITECTURE_FILE, new_content
-        )
+        self.file_store.write_file(feature_name, FileStore.ARCHITECTURE_FILE, new_content)
 
     def update_api_contracts(
         self,
@@ -161,11 +170,13 @@ class KnowledgeExtractor:
 
         if extracted_knowledge.get("api_routes"):
             for route in extracted_knowledge["api_routes"]:
-                contracts["routes"].append({
-                    "method": route["method"],
-                    "path": route["path"],
-                    "handler": route["handler"],
-                })
+                contracts["routes"].append(
+                    {
+                        "method": route["method"],
+                        "path": route["path"],
+                        "handler": route["handler"],
+                    }
+                )
 
         if extracted_knowledge.get("database_models"):
             contracts["models"] = extracted_knowledge["database_models"]
@@ -173,7 +184,7 @@ class KnowledgeExtractor:
         self.file_store.write_file(
             feature_name,
             FileStore.API_CONTRACTS_FILE,
-            yaml.dump(contracts, default_flow_style=False)
+            yaml.dump(contracts, default_flow_style=False),
         )
 
     def update_tests_doc(
@@ -199,9 +210,7 @@ class KnowledgeExtractor:
             new_content += f"\n\n## Test Categories\n\n"
             new_content += ", ".join(tests_info["test_categories"]) + "\n"
 
-        self.file_store.write_file(
-            feature_name, FileStore.TESTS_FILE, new_content
-        )
+        self.file_store.write_file(feature_name, FileStore.TESTS_FILE, new_content)
 
     def extract_and_update(
         self,
