@@ -1,11 +1,10 @@
-name: Wiki Generator
+name: SchemaWiki
 
 on:
-  # Run on demand via workflow_dispatch
   workflow_dispatch:
     inputs:
       feature:
-        description: 'Feature name to generate wiki for (leave empty for all)'
+        description: 'Feature name (empty for all)'
         required: false
         type: string
       push_to_github:
@@ -13,17 +12,14 @@ on:
         required: false
         type: boolean
         default: true
+      action:
+        description: 'Action: generate-wiki or prompt'
+        required: false
+        type: string
+        default: 'generate-wiki'
 
-  # Run on schedule (e.g., every hour)
   schedule:
     - cron: '0 * * * *'
-
-  # Run after pushes to main
-  push:
-    branches:
-      - main
-    paths:
-      - 'SchemaWiki/**'
 
 jobs:
   generate-wiki:
@@ -38,53 +34,112 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: |
-          pip install requests pyyaml
+        run: pip install requests pyyaml
 
       - name: Generate Wiki
         env:
-          SCHEMAWIKI_URL: ${{ vars.SCHEMAWIKI_URL || 'http://localhost:8081' }}
+          SCHEMAWIKI_URL: ${{ vars.SCHEMAWIKI_URL }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPO: ${{ github.repository }}
         run: |
-          # If SCHEMAWIKI_URL is external, use it; otherwise skip
           if [ -z "$SCHEMAWIKI_URL" ]; then
-            echo "SCHEMAWIKI_URL not set, skipping wiki generation"
+            echo "SCHEMAWIKI_URL not set, skipping"
             exit 0
           fi
 
           python3 << 'EOF'
-          import os
-          import requests
-          import json
-
-          api_url = os.environ.get("SCHEMAWIKI_URL", "http://localhost:8081")
+          import os, requests
+          api_url = os.environ.get("SCHEMAWIKI_URL")
           feature = "${{ github.event.inputs.feature }}"
-          push = ${{ github.event.inputs.push_to_github || 'true' }}
+          push = "${{ github.event.inputs.push_to_github }}"
 
-          # Get all features if no specific one
           if not feature:
               resp = requests.get(f"{api_url}/features", timeout=30)
-              features = resp.json()
+              features = resp.json() if resp.status_code == 200 else []
           else:
               features = [{"name": feature}]
 
           for f in features:
               name = f["name"]
-              print(f"Generating wiki for: {name}")
-
+              print(f"Wiki: {name}")
               try:
-                  resp = requests.get(
-                      f"{api_url}/wiki/{name}",
-                      params={"format": "markdown", "push_to_github": str(push).lower()},
-                      timeout=60
-                  )
-                  if resp.status_code == 200:
-                      print(f"  Wiki generated for {name}")
-                  else:
-                      print(f"  Error: {resp.status_code} - {resp.text}")
+                  requests.get(f"{api_url}/wiki/{name}",
+                    params={"format": "markdown", "push_to_github": push.lower() if push else "true"}, timeout=60)
               except Exception as e:
-                  print(f"  Failed: {e}")
-
+                  print(f"Error: {e}")
           print("Done!")
           EOF
+
+  show-prompt:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'prompt'
+    steps:
+      - name: Output Prompt
+        run: |
+          cat << 'PROMPT'
+          # SchemaWiki - Use in ANY Claude Code Session
+
+          ## 1. Start MCP Server (if not running)
+          cd /home/onchain3r/base/SchemaWiki/docker && docker-compose up -d mcp
+
+          ## 2. Tools to Use
+
+          ### Create Feature
+          create_feature(
+            name="feature-name",
+            description="What it does",
+            why="Business reason - why this feature exists"
+          )
+
+          ### Record Implementation Step
+          record_step(
+            feature_name="feature-name",
+            step="What you did",
+            why="Why you did it this way",
+            trigger="user_request | error | test_failure | lint_error | missing_code | bug_fix",
+            command="command executed",
+            files_modified=["file1.py", "file2.py"],
+            status="completed"
+          )
+
+          ### Record Development Event
+          record_event(
+            feature_name="feature-name",
+            event_type="feature_coded | change_pushed | service_restarted | test_passed | test_failed | lint_error | bug_fix | refactor",
+            why="Why this happened",
+            details="What happened",
+            files=["affected files"],
+            auto_wiki=true  # Auto-generates wiki
+          )
+
+          ### Generate Wiki
+          generate_wiki(
+            feature_name="feature-name",
+            format="markdown",
+            push_to_github=true
+          )
+
+          ## 3. REST API (No MCP Tools)
+          # Create feature
+          curl -X POST http://localhost:8081/features -H "Content-Type: application/json" \
+            -d '{"name":"feature-name","why":"Business reason"}'
+
+          # Record step
+          curl -X POST http://localhost:8081/steps -H "Content-Type: application/json" \
+            -d '{"feature_name":"feature-name","step":"Did X","why":"Because Y"}'
+
+          # Generate wiki
+          curl http://localhost:8081/wiki/feature-name
+
+          ## 4. Complete Example
+          # Step 1: Create feature
+          create_feature(name="user-auth", why="Users need secure login")
+
+          # Step 2: Record each step
+          record_step(feature_name="user-auth", step="Create User model", why="Store credentials", trigger="feature_requirement", files_modified=["models.py"])
+          record_step(feature_name="user-auth", step="Add JWT middleware", why="Handle token validation", trigger="feature_requirement", files_modified=["middleware/jwt.py"])
+
+          # Step 3: Mark complete (auto-generates wiki)
+          record_event(feature_name="user-auth", event_type="change_pushed", why="Feature complete", auto_wiki=true)
+
+          PROMPT
