@@ -774,6 +774,138 @@ async def generate_wiki_api(name: str, format: str = "markdown"):
     return result[0].text
 
 
+@app.get("/wiki/{name}/view")
+async def view_wiki_html(name: str):
+    """View wiki as rendered HTML page."""
+    from fastapi.responses import HTMLResponse
+
+    # Get markdown wiki
+    result = await generate_wiki({"feature_name": name, "format": "markdown"})
+    md_content = result[0].text
+
+    # Simple markdown to HTML conversion
+    html_content = md_to_html(md_content)
+
+    # Wrap in HTML page
+    html_page = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>{name} - SchemaWiki</title>
+    <style>
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+            color: #333;
+        }}
+        h1 {{ color: #1a1a1a; border-bottom: 2px solid #0066cc; padding-bottom: 10px; }}
+        h2 {{ color: #2a2a2a; margin-top: 30px; }}
+        h3 {{ color: #3a3a3a; }}
+        code {{
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Monaco', 'Menlo', monospace;
+        }}
+        pre {{
+            background: #f4f4f4;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }}
+        blockquote {{
+            border-left: 4px solid #0066cc;
+            margin: 10px 0;
+            padding-left: 15px;
+            color: #555;
+            background: #f9f9f9;
+        }}
+        ul, ol {{ padding-left: 25px; }}
+        li {{ margin: 5px 0; }}
+        strong {{ color: #0066cc; }}
+        hr {{ border: none; border-top: 1px solid #ddd; margin: 30px 0; }}
+        .meta {{ color: #666; font-size: 0.9em; }}
+    </style>
+</head>
+<body>
+{html_content}
+</body>
+</html>"""
+
+    return HTMLResponse(html_page)
+
+
+def md_to_html(md: str) -> str:
+    """Simple markdown to HTML conversion."""
+    import re
+
+    html = md
+
+    # Headers
+    html = re.sub(r'^### (.+)$', r'<h3>\1</h3>', html, flags=re.MULTILINE)
+    html = re.sub(r'^## (.+)$', r'<h2>\1</h2>', html, flags=re.MULTILINE)
+    html = re.sub(r'^# (.+)$', r'<h1>\1</h1>', html, flags=re.MULTILINE)
+
+    # Bold
+    html = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', html)
+
+    # Code blocks
+    html = re.sub(r'```(\w*)\n(.*?)```', r'<pre><code>\2</code></pre>', html, flags=re.DOTALL)
+
+    # Inline code
+    html = re.sub(r'`([^`]+)`', r'<code>\1</code>', html)
+
+    # Lists
+    html = re.sub(r'^- (.+)$', r'<li>\1</li>', html, flags=re.MULTILINE)
+    html = re.sub(r'^(\d+)\. (.+)$', r'<li>\2</li>', html, flags=re.MULTILINE)
+
+    # Wrap consecutive li in ul
+    html = re.sub(r'(<li>.*?</li>\n?)+', r'<ul>\g<0></ul>', html)
+
+    # Blockquotes
+    html = re.sub(r'^> (.+)$', r'<blockquote>\1</blockquote>', html, flags=re.MULTILINE)
+
+    # Paragraphs
+    html = re.sub(r'\n\n+', '\n', html)
+    lines = html.split('\n')
+    result = []
+    in_pre = False
+    in_ul = False
+    in_blockquote = False
+
+    for line in lines:
+        line = line.strip()
+        if not line:
+            if in_pre or in_ul or in_blockquote:
+                if in_pre:
+                    result.append('</code></pre>')
+                    in_pre = False
+                if in_ul:
+                    result.append('</ul>')
+                    in_ul = False
+                if in_blockquote:
+                    result.append('</blockquote>')
+                    in_blockquote = False
+            continue
+
+        if line.startswith('<pre>') or line.startswith('<ul>') or line.startswith('<blockquote>'):
+            result.append(line)
+            continue
+        if '</pre>' in line or '</ul>' in line or '</blockquote>' in line:
+            result.append(line)
+            continue
+
+        if not line.startswith('<') and not line.startswith('#'):
+            line = f'<p>{line}</p>'
+
+        result.append(line)
+
+    return '\n'.join(result)
+
+
 @app.get("/wikis")
 async def list_wikis():
     """List all saved wiki pages."""
