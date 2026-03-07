@@ -713,6 +713,15 @@ async def create_feature_api(feature: FeatureRecord):
     return json.loads(result[0].text)
 
 
+@app.get("/features")
+async def list_features_api():
+    """REST API: List all features."""
+    features = []
+    for name, data in FEATURES.items():
+        features.append({"name": name, **data})
+    return features
+
+
 @app.post("/steps")
 async def record_step_api(step: StepRecord):
     """REST API: Record step."""

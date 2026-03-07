@@ -258,6 +258,33 @@ The generated wiki includes:
 
 This gives future developers complete context on why decisions were made.
 
+### CLI (No Claude Code Required)
+
+You can use the CLI to record activities and generate wikis without Claude Code:
+
+```bash
+# Install
+pip install requests pyyaml
+
+# Set API URL
+export SCHEMAWIKI_URL=http://localhost:8081
+
+# Create a feature
+python cli.py create "user-auth" -w "Users need secure authentication" -d "JWT authentication"
+
+# Record a step
+python cli.py step -f user-auth "Create User model" -w "Need user table" -t user_request -c "sqlacodegen" --files models.py
+
+# Record an event
+python cli.py event -f user-auth lint_error -w "Code style violation" --files auth.py
+
+# Generate wiki
+python cli.py wiki user-auth -o user-auth.md
+
+# Push to GitHub
+python cli.py wiki user-auth --push
+```
+
 ### REST API
 
 The MCP server also exposes REST endpoints on port 8081:
@@ -341,6 +368,30 @@ You can automatically push generated wikis to a GitHub repository:
 **Accessing GitHub Wikis:**
 - View online: `https://github.com/{owner}/{repo}/blob/{branch}/SchemaWiki/{feature-name}.md`
 - Raw: `https://raw.githubusercontent.com/{owner}/{repo}/{branch}/SchemaWiki/{feature-name}.md`
+
+### GitHub Actions (Automated)
+
+Run `.github/workflows/wiki.yml` to generate wikis automatically:
+
+1. **On Demand** - Go to Actions > Wiki Generator > Run workflow
+
+2. **On Schedule** - Runs hourly by default (edit cron in workflow)
+
+3. **After Push** - Triggers when files in `SchemaWiki/` folder change
+
+**Setup:**
+1. Add `SCHEMAWIKI_URL` to repository variables
+2. Add `GITHUB_REPO` and `GITHUB_TOKEN` (auto-available) to generate wikis
+
+```yaml
+# Example - trigger manually
+workflow_dispatch:
+  inputs:
+    feature:
+      description: 'Feature name'
+    push_to_github:
+      default: true
+```
 
 ### Configuration for Claude Code
 

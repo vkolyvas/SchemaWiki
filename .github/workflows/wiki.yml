@@ -1,0 +1,90 @@
+name: Wiki Generator
+
+on:
+  # Run on demand via workflow_dispatch
+  workflow_dispatch:
+    inputs:
+      feature:
+        description: 'Feature name to generate wiki for (leave empty for all)'
+        required: false
+        type: string
+      push_to_github:
+        description: 'Push wiki to GitHub'
+        required: false
+        type: boolean
+        default: true
+
+  # Run on schedule (e.g., every hour)
+  schedule:
+    - cron: '0 * * * *'
+
+  # Run after pushes to main
+  push:
+    branches:
+      - main
+    paths:
+      - 'SchemaWiki/**'
+
+jobs:
+  generate-wiki:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install requests pyyaml
+
+      - name: Generate Wiki
+        env:
+          SCHEMAWIKI_URL: ${{ vars.SCHEMAWIKI_URL || 'http://localhost:8081' }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPO: ${{ github.repository }}
+        run: |
+          # If SCHEMAWIKI_URL is external, use it; otherwise skip
+          if [ -z "$SCHEMAWIKI_URL" ]; then
+            echo "SCHEMAWIKI_URL not set, skipping wiki generation"
+            exit 0
+          fi
+
+          python3 << 'EOF'
+          import os
+          import requests
+          import json
+
+          api_url = os.environ.get("SCHEMAWIKI_URL", "http://localhost:8081")
+          feature = "${{ github.event.inputs.feature }}"
+          push = ${{ github.event.inputs.push_to_github || 'true' }}
+
+          # Get all features if no specific one
+          if not feature:
+              resp = requests.get(f"{api_url}/features", timeout=30)
+              features = resp.json()
+          else:
+              features = [{"name": feature}]
+
+          for f in features:
+              name = f["name"]
+              print(f"Generating wiki for: {name}")
+
+              try:
+                  resp = requests.get(
+                      f"{api_url}/wiki/{name}",
+                      params={"format": "markdown", "push_to_github": str(push).lower()},
+                      timeout=60
+                  )
+                  if resp.status_code == 200:
+                      print(f"  Wiki generated for {name}")
+                  else:
+                      print(f"  Error: {resp.status_code} - {resp.text}")
+              except Exception as e:
+                  print(f"  Failed: {e}")
+
+          print("Done!")
+          EOF
