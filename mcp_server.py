@@ -1,10 +1,11 @@
-"""SchemaWiki MCP Server - Record AI agent activities and generate wiki pages."""
+"""SchemaWiki MCP Server - Record AI agent activities with rich context."""
 
 import os
 import json
 import asyncio
 from pathlib import Path
 from typing import Optional, Any
+from datetime import datetime
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -18,7 +19,7 @@ from mcp.server.notification_options import NotificationOptions
 
 app = FastAPI(title="SchemaWiki MCP Server")
 
-# Store for in-memory feature data (for MCP server without full DB)
+# Store for in-memory feature data
 FEATURES: dict[str, dict] = {}
 
 
@@ -33,15 +34,21 @@ class FeatureRecord(BaseModel):
 class StepRecord(BaseModel):
     feature_name: str
     step: str
+    why: Optional[str] = None  # Why this step was taken
+    trigger: Optional[str] = None  # What triggered this (e.g., "user_request", "error", "test_failure")
     command: Optional[str] = None
     files_modified: list[str] = []
     output: Optional[str] = None
-    status: str = "in_progress"  # in_progress, completed, failed
+    status: str = "in_progress"
+    context: Optional[str] = None  # Additional context
 
 
-class WikiContent(BaseModel):
+class EventRecord(BaseModel):
     feature_name: str
-    format: str = "markdown"  # markdown, html
+    event_type: str  # feature_coded, service_restarted, change_pushed, missing_code, lint_error, test_passed, test_failed, bug_fix, code_review, refactor
+    why: str  # Why this happened
+    details: Optional[str] = None
+    files: list[str] = []
 
 
 # MCP Server Setup
@@ -60,27 +67,46 @@ async def list_tools() -> list[Tool]:
                 "properties": {
                     "name": {"type": "string", "description": "Feature name"},
                     "description": {"type": "string", "description": "Feature description"},
-                    "version": {"type": "string", "description": "Semantic version (default: 0.1.0)"},
+                    "version": {"type": "string", "description": "Semantic version"},
                     "tags": {"type": "array", "items": {"type": "string"}, "description": "Feature tags"},
                     "plan": {"type": "string", "description": "Initial plan content"},
+                    "why": {"type": "string", "description": "Why this feature is being built"},
                 },
                 "required": ["name"],
             },
         ),
         Tool(
             name="record_step",
-            description="Record an implementation step taken by the agent",
+            description="Record an implementation step with reasoning",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "feature_name": {"type": "string", "description": "Feature name"},
                     "step": {"type": "string", "description": "Description of the step"},
+                    "why": {"type": "string", "description": "Why this step was taken"},
+                    "trigger": {"type": "string", "description": "What triggered this (user_request, error, test_failure, lint_error, missing_code, bug_fix)"},
                     "command": {"type": "string", "description": "Command executed"},
                     "files_modified": {"type": "array", "items": {"type": "string"}, "description": "Files modified"},
                     "output": {"type": "string", "description": "Command output"},
                     "status": {"type": "string", "enum": ["in_progress", "completed", "failed"], "description": "Step status"},
+                    "context": {"type": "string", "description": "Additional context"},
                 },
-                "required": ["feature_name", "step"],
+                "required": ["feature_name", "step", "why"],
+            },
+        ),
+        Tool(
+            name="record_event",
+            description="Record a development event (restart, push, test, etc.) with reasoning",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "feature_name": {"type": "string", "description": "Feature name"},
+                    "event_type": {"type": "string", "enum": ["feature_coded", "service_restarted", "change_pushed", "missing_code", "lint_error", "test_passed", "test_failed", "bug_fix", "code_review", "refactor", "dependency_added", "config_changed", "api_contract_change", "db_migration"], "description": "Type of event"},
+                    "why": {"type": "string", "description": "Why this happened"},
+                    "details": {"type": "string", "description": "Event details"},
+                    "files": {"type": "array", "items": {"type": "string"}, "description": "Related files"},
+                },
+                "required": ["feature_name", "event_type", "why"],
             },
         ),
         Tool(
@@ -90,20 +116,23 @@ async def list_tools() -> list[Tool]:
                 "type": "object",
                 "properties": {
                     "feature_name": {"type": "string", "description": "Feature name"},
-                    "content": {"type": "string", "description": "Implementation content to add"},
+                    "content": {"type": "string", "description": "Implementation content"},
+                    "why": {"type": "string", "description": "Why this was added"},
                 },
                 "required": ["feature_name", "content"],
             },
         ),
         Tool(
             name="add_debug_log",
-            description="Add a debug log entry for a failed attempt",
+            description="Add a debug log with error analysis",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "feature_name": {"type": "string", "description": "Feature name"},
                     "attempt": {"type": "integer", "description": "Attempt number"},
                     "error": {"type": "string", "description": "Error message"},
+                    "why_failed": {"type": "string", "description": "Why it failed (root cause analysis)"},
+                    "fix_applied": {"type": "string", "description": "Fix that was applied"},
                     "log": {"type": "string", "description": "Debug log content"},
                 },
                 "required": ["feature_name", "attempt", "error"],
@@ -135,10 +164,7 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="list_features",
             description="List all recorded features",
-            inputSchema={
-                "type": "object",
-                "properties": {},
-            },
+            inputSchema={"type": "object", "properties": {}},
         ),
         Tool(
             name="search_features",
@@ -157,11 +183,12 @@ async def list_tools() -> list[Tool]:
 @server.call_tool()
 async def call_tool(name: str, arguments: Any) -> list[TextContent]:
     """Handle tool calls."""
-
     if name == "create_feature":
         return await create_feature(arguments)
     elif name == "record_step":
         return await record_step(arguments)
+    elif name == "record_event":
+        return await record_event(arguments)
     elif name == "update_implementation":
         return await update_implementation(arguments)
     elif name == "add_debug_log":
@@ -190,46 +217,66 @@ async def create_feature(args: dict) -> list[TextContent]:
         "version": args.get("version", "0.1.0"),
         "tags": args.get("tags", []),
         "status": "planning",
+        "why": args.get("why", ""),  # Why this feature exists
         "plan": args.get("plan", ""),
         "implementation": "",
         "steps": [],
+        "events": [],
         "debug_logs": [],
+        "created_at": datetime.utcnow().isoformat(),
     }
 
     FEATURES[name] = feature
 
-    return [TextContent(
-        type="text",
-        text=json.dumps({"status": "created", "feature": name}, indent=2)
-    )]
+    return [TextContent(type="text", text=json.dumps({"status": "created", "feature": name}, indent=2))]
 
 
 async def record_step(args: dict) -> list[TextContent]:
-    """Record an implementation step."""
+    """Record an implementation step with reasoning."""
     feature_name = args.get("feature_name")
     if not feature_name or feature_name not in FEATURES:
         raise ValueError(f"Feature '{feature_name}' not found")
 
     step = {
         "step": args.get("step", ""),
+        "why": args.get("why", ""),  # Why this step was taken
+        "trigger": args.get("trigger", ""),  # What triggered this
         "command": args.get("command", ""),
         "files_modified": args.get("files_modified", []),
         "output": args.get("output", ""),
         "status": args.get("status", "in_progress"),
+        "context": args.get("context", ""),
+        "timestamp": datetime.utcnow().isoformat(),
     }
 
     FEATURES[feature_name]["steps"].append(step)
 
-    # Update status based on step
+    # Update status
     if args.get("status") == "completed":
         FEATURES[feature_name]["status"] = "in_progress"
     elif args.get("status") == "failed":
         FEATURES[feature_name]["status"] = "failed"
 
-    return [TextContent(
-        type="text",
-        text=json.dumps({"status": "recorded", "step": len(FEATURES[feature_name]["steps"])}, indent=2)
-    )]
+    return [TextContent(type="text", text=json.dumps({"status": "recorded", "step": len(FEATURES[feature_name]["steps"])}, indent=2))]
+
+
+async def record_event(args: dict) -> list[TextContent]:
+    """Record a development event."""
+    feature_name = args.get("feature_name")
+    if not feature_name or feature_name not in FEATURES:
+        raise ValueError(f"Feature '{feature_name}' not found")
+
+    event = {
+        "event_type": args.get("event_type", ""),
+        "why": args.get("why", ""),  # Why this happened
+        "details": args.get("details", ""),
+        "files": args.get("files", []),
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+
+    FEATURES[feature_name]["events"].append(event)
+
+    return [TextContent(type="text", text=json.dumps({"status": "recorded", "event": args.get("event_type")}, indent=2))]
 
 
 async def update_implementation(args: dict) -> list[TextContent]:
@@ -239,16 +286,20 @@ async def update_implementation(args: dict) -> list[TextContent]:
         raise ValueError(f"Feature '{feature_name}' not found")
 
     content = args.get("content", "")
-    FEATURES[feature_name]["implementation"] += f"\n\n{content}"
+    why = args.get("why", "")
 
-    return [TextContent(
-        type="text",
-        text=json.dumps({"status": "updated", "feature": feature_name}, indent=2)
-    )]
+    entry = f"\n\n## {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}"
+    if why:
+        entry += f"\n**Why:** {why}"
+    entry += f"\n\n{content}"
+
+    FEATURES[feature_name]["implementation"] += entry
+
+    return [TextContent(type="text", text=json.dumps({"status": "updated", "feature": feature_name}, indent=2))]
 
 
 async def add_debug_log(args: dict) -> list[TextContent]:
-    """Add a debug log entry."""
+    """Add a debug log with root cause analysis."""
     feature_name = args.get("feature_name")
     if not feature_name or feature_name not in FEATURES:
         raise ValueError(f"Feature '{feature_name}' not found")
@@ -256,15 +307,15 @@ async def add_debug_log(args: dict) -> list[TextContent]:
     log_entry = {
         "attempt": args.get("attempt", 1),
         "error": args.get("error", ""),
+        "why_failed": args.get("why_failed", ""),  # Root cause
+        "fix_applied": args.get("fix_applied", ""),  # What was done to fix
         "log": args.get("log", ""),
+        "timestamp": datetime.utcnow().isoformat(),
     }
 
     FEATURES[feature_name]["debug_logs"].append(log_entry)
 
-    return [TextContent(
-        type="text",
-        text=json.dumps({"status": "logged", "attempt": log_entry["attempt"]}, indent=2)
-    )]
+    return [TextContent(type="text", text=json.dumps({"status": "logged", "attempt": log_entry["attempt"]}, indent=2))]
 
 
 async def get_feature(args: dict) -> list[TextContent]:
@@ -273,10 +324,7 @@ async def get_feature(args: dict) -> list[TextContent]:
     if not name or name not in FEATURES:
         raise ValueError(f"Feature '{name}' not found")
 
-    return [TextContent(
-        type="text",
-        text=json.dumps(FEATURES[name], indent=2)
-    )]
+    return [TextContent(type="text", text=json.dumps(FEATURES[name], indent=2))]
 
 
 async def generate_wiki(args: dict) -> list[TextContent]:
@@ -297,18 +345,32 @@ async def generate_wiki(args: dict) -> list[TextContent]:
 
 
 def generate_markdown_wiki(feature: dict) -> str:
-    """Generate Markdown wiki page."""
+    """Generate Markdown wiki page with rich context."""
     lines = [
         f"# {feature['name']}",
         "",
         f"**Version:** {feature['version']}",
         f"**Status:** {feature['status']}",
-        "",
-        f"## Description",
-        "",
-        feature.get("description", "No description provided."),
+        f"**Created:** {feature.get('created_at', 'N/A')}",
         "",
     ]
+
+    # WHY this feature exists
+    if feature.get("why"):
+        lines.extend([
+            "## Why This Feature Exists",
+            "",
+            feature["why"],
+            "",
+        ])
+
+    if feature.get("description"):
+        lines.extend([
+            "## Description",
+            "",
+            feature.get("description", "No description provided."),
+            "",
+        ])
 
     if feature.get("tags"):
         lines.extend([
@@ -334,46 +396,116 @@ def generate_markdown_wiki(feature: dict) -> str:
             "",
         ])
 
+    # EVENTS - Major things that happened
+    if feature.get("events"):
+        lines.append("## Development Events")
+        lines.append("")
+        for event in feature["events"]:
+            event_emoji = {
+                "service_restarted": "🔄",
+                "change_pushed": "📤",
+                "test_passed": "✅",
+                "test_failed": "❌",
+                "lint_error": "⚠️",
+                "bug_fix": "🐛",
+                "code_review": "👀",
+                "refactor": "♻️",
+                "dependency_added": "📦",
+                "config_changed": "⚙️",
+                "api_contract_change": "🔗",
+                "db_migration": "🗄️",
+                "feature_coded": "💻",
+            }.get(event["event_type"], "📝")
+
+            lines.append(f"### {event_emoji} {event['event_type'].replace('_', ' ').title()}")
+            lines.append("")
+            lines.append(f"**Why:** {event.get('why', 'N/A')}")
+            if event.get("details"):
+                lines.append("")
+                lines.append(f"**Details:** {event['details']}")
+            if event.get("files"):
+                lines.append("")
+                lines.append("**Files:**")
+                for f in event["files"]:
+                    lines.append(f"- `{f}`")
+            lines.append("")
+
+    # IMPLEMENTATION STEPS with WHY
     if feature.get("steps"):
         lines.append("## Implementation Steps")
         lines.append("")
         for i, step in enumerate(feature["steps"], 1):
             lines.append(f"### Step {i}: {step['step']}")
             lines.append("")
+
+            # WHY this step was taken
+            if step.get("why"):
+                lines.append(f"> **Why:** {step['why']}")
+
+            # Trigger
+            if step.get("trigger"):
+                lines.append(f"> **Trigger:** {step['trigger']}")
+
+            # Command
             if step.get("command"):
+                lines.append("")
                 lines.append("```bash")
                 lines.append(step["command"])
                 lines.append("```")
-                lines.append("")
+
+            # Files modified
             if step.get("files_modified"):
+                lines.append("")
                 lines.append("**Files modified:**")
                 for f in step["files_modified"]:
                     lines.append(f"- `{f}`")
+
+            # Context
+            if step.get("context"):
                 lines.append("")
+                lines.append(f"**Context:** {step['context']}")
+
+            # Output (truncated)
             if step.get("output"):
+                lines.append("")
                 lines.append("**Output:**")
                 lines.append("```")
                 lines.append(step["output"][:500])
                 lines.append("```")
-                lines.append("")
+
+            lines.append("")
             lines.append(f"**Status:** {step.get('status', 'unknown')}")
             lines.append("")
 
+    # DEBUG LOGS with root cause analysis
     if feature.get("debug_logs"):
         lines.extend([
-            "## Debug Logs",
+            "## Debug Logs & Root Cause Analysis",
             "",
         ])
         for log in feature["debug_logs"]:
             lines.append(f"### Attempt {log['attempt']}")
             lines.append("")
-            lines.append(f"**Error:** {log.get('error', 'N/A')}")
-            lines.append("")
+            lines.append(f"**Error:** `{log.get('error', 'N/A')}`")
+
+            # WHY it failed
+            if log.get("why_failed"):
+                lines.append("")
+                lines.append(f"**Why it failed:** {log['why_failed']}")
+
+            # What was done to fix
+            if log.get("fix_applied"):
+                lines.append("")
+                lines.append(f"**Fix applied:** {log['fix_applied']}")
+
+            # Full log
             if log.get("log"):
+                lines.append("")
+                lines.append("**Debug log:**")
                 lines.append("```")
                 lines.append(log["log"])
                 lines.append("```")
-                lines.append("")
+            lines.append("")
 
     return "\n".join(lines)
 
@@ -381,19 +513,20 @@ def generate_markdown_wiki(feature: dict) -> str:
 def generate_html_wiki(feature: dict) -> str:
     """Generate HTML wiki page."""
     md = generate_markdown_wiki(feature)
-    # Simple markdown to HTML conversion
+    # Simple conversion
     html = md.replace("# ", "<h1>").replace("\n## ", "</h1>\n<h2>").replace("\n### ", "</h2>\n<h3>")
-    html = html.replace("**", "<strong>").replace("`", "<code>")
+    html = html.replace("**", "<strong>").replace("`", "<code>").replace(">", "<blockquote>")
     html = html.replace("\n\n", "</p>\n<p>")
     return f"""<!DOCTYPE html>
 <html>
 <head>
     <title>{feature['name']} - SchemaWiki</title>
     <style>
-        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }}
-        h1, h2, h3 {{ color: #333; }}
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; line-height: 1.6; }}
+        h1, h2, h3 {{ color: #1a1a1a; margin-top: 30px; }}
         code {{ background: #f4f4f4; padding: 2px 6px; border-radius: 3px; }}
         pre {{ background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }}
+        blockquote {{ border-left: 4px solid #0066cc; margin: 10px 0; padding-left: 15px; color: #555; }}
     </style>
 </head>
 <body>
@@ -404,10 +537,7 @@ def generate_html_wiki(feature: dict) -> str:
 
 async def list_features() -> list[TextContent]:
     """List all features."""
-    return [TextContent(
-        type="text",
-        text=json.dumps(list(FEATURES.keys()), indent=2)
-    )]
+    return [TextContent(type="text", text=json.dumps(list(FEATURES.keys()), indent=2))]
 
 
 async def search_features(args: dict) -> list[TextContent]:
@@ -419,13 +549,10 @@ async def search_features(args: dict) -> list[TextContent]:
         if query in name.lower() or query in feature.get("description", "").lower():
             results.append(feature)
 
-    return [TextContent(
-        type="text",
-        text=json.dumps(results, indent=2)
-    )]
+    return [TextContent(type="text", text=json.dumps(results, indent=2))]
 
 
-# REST API endpoints for external integration
+# REST API endpoints
 @app.post("/features")
 async def create_feature_api(feature: FeatureRecord):
     """REST API: Create feature."""
@@ -439,6 +566,14 @@ async def record_step_api(step: StepRecord):
     """REST API: Record step."""
     args = step.model_dump()
     result = await record_step(args)
+    return json.loads(result[0].text)
+
+
+@app.post("/events")
+async def record_event_api(event: EventRecord):
+    """REST API: Record event."""
+    args = event.model_dump()
+    result = await record_event(args)
     return json.loads(result[0].text)
 
 
@@ -463,17 +598,14 @@ async def health():
 
 async def main():
     """Run the MCP server."""
-    # Run both MCP stdio server and REST API
     import threading
 
-    # Start REST API in background thread
     def run_api():
         uvicorn.run(app, host="0.0.0.0", port=8081, log_level="warning")
 
     api_thread = threading.Thread(target=run_api, daemon=True)
     api_thread.start()
 
-    # Run MCP server
     async with stdio_server() as (read_stream, write_stream):
         await server.run(
             read_stream,
