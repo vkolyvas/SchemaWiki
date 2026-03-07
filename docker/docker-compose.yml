@@ -36,6 +36,14 @@ services:
       postgres:
         condition: service_healthy
 
+  mcp:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.mcp
+    container_name: schemawiki-mcp
+    ports:
+      - "8081:8081"
+
 volumes:
   features_data:
   postgres_data:
