@@ -302,6 +302,46 @@ Wikis are saved to `/data/wikis/` (or `WIKI_DATA_PATH` env var). Humans can acce
 
 The wiki path is returned in the response and stored in the feature's `wiki_path` field.
 
+### Pushing Wikis to GitHub
+
+You can automatically push generated wikis to a GitHub repository:
+
+1. Set environment variables:
+   ```bash
+   GITHUB_REPO=owner/repo        # e.g., vkolyvas/SchemaWiki
+   GITHUB_TOKEN=ghp_xxx         # GitHub personal access token
+   WIKI_BRANCH=main             # Branch to push to (default: main)
+   ```
+
+2. Generate wiki with push:
+   ```python
+   generate_wiki(
+       feature_name="user-auth",
+       format="markdown",
+       push_to_github=True
+   )
+   ```
+
+   Or set env vars and it will auto-push:
+   ```bash
+   export GITHUB_REPO=vkolyvas/SchemaWiki
+   export GITHUB_TOKEN=ghp_xxx
+   # Now any generate_wiki call will push to GitHub
+   ```
+
+3. Wiki files are saved in the repo under `SchemaWiki/{feature-name}.md`
+
+4. The GitHub URL is stored in `feature["github_wiki_url"]`
+
+**GitHub Token Setup:**
+- Go to GitHub Settings > Developer settings > Personal access tokens
+- Generate new token (Fine-grained)
+- Permissions: Contents: Read/Write
+
+**Accessing GitHub Wikis:**
+- View online: `https://github.com/{owner}/{repo}/blob/{branch}/SchemaWiki/{feature-name}.md`
+- Raw: `https://raw.githubusercontent.com/{owner}/{repo}/{branch}/SchemaWiki/{feature-name}.md`
+
 ### Configuration for Claude Code
 
 Add to your Claude Code settings:

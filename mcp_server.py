@@ -26,6 +26,11 @@ FEATURES: dict[str, dict] = {}
 WIKI_DATA_PATH = os.environ.get("WIKI_DATA_PATH", "/data/wikis")
 Path(WIKI_DATA_PATH).mkdir(parents=True, exist_ok=True)
 
+# GitHub repository for wiki uploads (optional)
+GITHUB_REPO = os.environ.get("GITHUB_REPO", "")  # e.g., "owner/repo"
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")  # GitHub token for pushing
+WIKI_BRANCH = os.environ.get("WIKI_BRANCH", "main")
+
 
 class FeatureRecord(BaseModel):
     name: str
@@ -207,6 +212,10 @@ async def list_tools() -> list[Tool]:
                         "type": "string",
                         "enum": ["markdown", "html"],
                         "description": "Output format",
+                    },
+                    "push_to_github": {
+                        "type": "boolean",
+                        "description": "Push wiki to GitHub repo (requires GITHUB_REPO and GITHUB_TOKEN env vars)",
                     },
                 },
                 "required": ["feature_name"],
@@ -409,6 +418,7 @@ async def generate_wiki(args: dict) -> list[TextContent]:
 
     feature = FEATURES[feature_name]
     fmt = args.get("format", "markdown")
+    push_to_github = args.get("push_to_github", False)
 
     if fmt == "html":
         wiki = generate_html_wiki(feature)
@@ -425,7 +435,53 @@ async def generate_wiki(args: dict) -> list[TextContent]:
     feature["wiki_path"] = str(wiki_path)
     feature["wiki_format"] = fmt
 
+    # Optionally push to GitHub
+    if push_to_github or GITHUB_REPO:
+        github_path = await push_wiki_to_github(feature_name, wiki, fmt)
+        feature["github_wiki_url"] = github_path
+
     return [TextContent(type="text", text=wiki)]
+
+
+async def push_wiki_to_github(feature_name: str, content: str, fmt: str) -> str:
+    """Push wiki file to GitHub repository."""
+    if not GITHUB_REPO or not GITHUB_TOKEN:
+        raise ValueError("GITHUB_REPO and GITHUB_TOKEN must be set to push to GitHub")
+
+    import httpx
+
+    branch = WIKI_BRANCH
+    filename = f"SchemaWiki/{feature_name}.{'md' if fmt == 'markdown' else 'html'}"
+
+    # Get the current file SHA if it exists (for updates)
+    sha = None
+    async with httpx.AsyncClient() as client:
+        # Try to get existing file
+        get_url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{filename}"
+        headers = {
+            "Authorization": f"token {GITHUB_TOKEN}",
+            "Accept": "application/vnd.github.v3+json",
+        }
+        resp = await client.get(get_url, headers=headers)
+        if resp.status_code == 200:
+            sha = resp.json().get("sha")
+
+        # Create or update file
+        data = {
+            "message": f"Update wiki: {feature_name}",
+            "content": content.encode("utf-8").decode("latin-1"),
+            "branch": branch,
+        }
+        if sha:
+            data["sha"] = sha
+
+        put_url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{filename}"
+        resp = await client.put(put_url, json=data, headers=headers)
+
+        if resp.status_code not in (200, 201):
+            raise ValueError(f"GitHub push failed: {resp.text}")
+
+        return resp.json().get("content", {}).get("html_url", "")
 
 
 def generate_markdown_wiki(feature: dict) -> str:

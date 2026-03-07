@@ -43,6 +43,9 @@ services:
     container_name: schemawiki-mcp
     environment:
       WIKI_DATA_PATH: /data/wikis
+      GITHUB_REPO: ${GITHUB_REPO:-}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      WIKI_BRANCH: ${WIKI_BRANCH:-main}
     volumes:
       - wikis_data:/data/wikis
     ports:
