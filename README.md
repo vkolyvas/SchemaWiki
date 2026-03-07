@@ -129,6 +129,162 @@ isort .
 - **GitPython**: Git operations
 - **sentence-transformers**: Semantic search (Phase 4)
 
+## MCP Server - AI Agent Activity Recording
+
+The MCP server records AI agent activities during software development, capturing the **why** behind every step.
+
+### Running the MCP Server
+
+#### Option 1: Docker (Recommended)
+```bash
+cd docker
+docker-compose up -d
+```
+
+#### Option 2: Local
+```bash
+python mcp_server.py
+```
+
+### MCP Tools
+
+The server provides these tools for Claude Code:
+
+| Tool | Description |
+|------|-------------|
+| `create_feature` | Create a new feature with name, description, version, tags |
+| `record_step` | Record an implementation step with reasoning and trigger |
+| `record_event` | Record events (lint_error, test_failed, bug_fix, etc.) |
+| `update_implementation` | Update implementation documentation |
+| `add_debug_log` | Log errors with root cause analysis |
+| `get_feature` | Get full feature details |
+| `generate_wiki` | Generate markdown/HTML wiki page |
+| `list_features` | List all recorded features |
+| `search_features` | Search features by query |
+
+### Understanding the "Why" Tracking
+
+Every step and event captures:
+
+- **`why`**: The reasoning behind the action
+- **`trigger`**: What initiated this (user_request, error, test_failure, lint_error, missing_code, bug_fix)
+- **`context`**: Additional background information
+- **`files_modified`**: Which files were changed
+
+### Event Types
+
+Use these event types with `record_event`:
+
+| Event | Description |
+|-------|-------------|
+| `feature_coded` | Feature implementation completed |
+| `service_restarted` | Service was restarted |
+| `change_pushed` | Code pushed to repository |
+| `missing_code` | Discovered missing functionality |
+| `lint_error` | Linting error occurred |
+| `test_passed` | Tests passed |
+| `test_failed` | Tests failed |
+| `bug_fix` | Bug was fixed |
+| `code_review` | Code review performed |
+| `refactor` | Code was refactored |
+| `dependency_added` | New dependency added |
+| `config_changed` | Configuration changed |
+| `api_contract_change` | API contract modified |
+| `db_migration` | Database migration applied |
+
+### Example Workflow
+
+1. **Create a feature:**
+```python
+create_feature(
+    name="user-auth",
+    description="JWT authentication system",
+    version="1.0.0",
+    why="Users need secure authentication"
+)
+```
+
+2. **Record implementation steps:**
+```python
+record_step(
+    feature_name="user-auth",
+    step="Create User model",
+    why="Need to store user credentials securely",
+    trigger="user_request",
+    command="python -m flask db create",
+    files_modified=["models/user.py", "schemas/user.yaml"]
+)
+```
+
+3. **Record events:**
+```python
+record_event(
+    feature_name="user-auth",
+    event_type="lint_error",
+    why="Discovered unused import in user model",
+    details="Removed unused 'os' import",
+    files=["models/user.py"]
+)
+```
+
+4. **Add debug logs:**
+```python
+add_debug_log(
+    feature_name="user-auth",
+    attempt=2,
+    error="JWT token expired immediately",
+    why_failed="Token expiry not set in config",
+    fix_applied="Added 'expire_minutes': 60 to config"
+)
+```
+
+5. **Generate wiki:**
+```python
+generate_wiki(
+    feature_name="user-auth",
+    format="markdown"  # or "html"
+)
+```
+
+### Wiki Output
+
+The generated wiki includes:
+
+- **Why the feature exists** - Business justification
+- **Plan and implementation** - Technical details
+- **Development events** - Key milestones with reasoning
+- **Implementation steps** - Each step with why/trigger
+- **Debug logs** - Root cause analysis from failures
+
+This gives future developers complete context on why decisions were made.
+
+### REST API
+
+The MCP server also exposes REST endpoints on port 8081:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/features` | POST | Create feature |
+| `/steps` | POST | Record step |
+| `/events` | POST | Record event |
+| `/features/{name}` | GET | Get feature |
+| `/wiki/{name}` | GET | Generate wiki |
+
+### Configuration for Claude Code
+
+Add to your Claude Code settings:
+
+```json
+{
+  "mcpServers": {
+    "schemawiki": {
+      "command": "python",
+      "args": ["/path/to/SchemaWiki/mcp_server.py"]
+    }
+  }
+}
+```
+
 ## License
 
 MIT
