@@ -285,6 +285,26 @@ python cli.py wiki user-auth -o user-auth.md
 python cli.py wiki user-auth --push
 ```
 
+### Auto-Wiki Generation
+
+The MCP server can **automatically generate and push wikis** when you record events. Set `GITHUB_REPO` and `GITHUB_TOKEN` env vars, then recording these events will auto-generate the wiki:
+
+- `feature_coded` - Feature implementation complete
+- `change_pushed` - Code pushed to repository
+- `service_restarted` - Service restarted
+
+```python
+# Auto-generates wiki when event is recorded
+record_event(
+    feature_name="user-auth",
+    event_type="change_pushed",
+    why="Completed authentication feature",
+    auto_wiki=True  # Triggers wiki generation
+)
+```
+
+Or just set `GITHUB_REPO` env var - it will auto-push on those events.
+
 ### REST API
 
 The MCP server also exposes REST endpoints on port 8081:

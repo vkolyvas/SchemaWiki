@@ -154,6 +154,10 @@ async def list_tools() -> list[Tool]:
                         "items": {"type": "string"},
                         "description": "Related files",
                     },
+                    "auto_wiki": {
+                        "type": "boolean",
+                        "description": "Auto-generate and push wiki after this event (if GITHUB_REPO set)",
+                    },
                 },
                 "required": ["feature_name", "event_type", "why"],
             },
@@ -344,6 +348,25 @@ async def record_event(args: dict) -> list[TextContent]:
     }
 
     FEATURES[feature_name]["events"].append(event)
+
+    # Auto-generate wiki on these events
+    auto_wiki_events = ["feature_coded", "change_pushed", "service_restarted"]
+    auto_push = args.get("auto_wiki", False) or GITHUB_REPO
+
+    if args.get("event_type") in auto_wiki_events and auto_push:
+        try:
+            wiki = generate_markdown_wiki(FEATURES[feature_name])
+            filename = f"{feature_name}.md"
+            wiki_path = Path(WIKI_DATA_PATH) / filename
+            wiki_path.write_text(wiki)
+            FEATURES[feature_name]["wiki_path"] = str(wiki_path)
+
+            # Push to GitHub if configured
+            if GITHUB_REPO and GITHUB_TOKEN:
+                github_url = await push_wiki_to_github(feature_name, wiki, "markdown")
+                FEATURES[feature_name]["github_wiki_url"] = github_url
+        except Exception as e:
+            pass  # Don't fail the event recording
 
     return [
         TextContent(
