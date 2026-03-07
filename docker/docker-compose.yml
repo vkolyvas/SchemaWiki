@@ -1,0 +1,41 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: schemawiki-db
+    environment:
+      POSTGRES_USER: schemawiki
+      POSTGRES_PASSWORD: schemawiki
+      POSTGRES_DB: schemawiki
+    volumes:
+      - postgres_data:/data/postgres
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U schemawiki -p 5432"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: schemawiki-api
+    environment:
+      DATABASE_URL: postgresql+asyncpg://schemawiki:schemawiki@postgres:5432/schemawiki
+      FEATURES_DATA_PATH: /data/features
+      POSTGRES_DATA_PATH: /data/postgres
+      API_HOST: 0.0.0.0
+      API_PORT: 8080
+    volumes:
+      - features_data:/data/features
+      - postgres_data:/data/postgres
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  features_data:
+  postgres_data:
