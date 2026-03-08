@@ -1,56 +1,27 @@
-name: SchemaWiki Analysis
+name: SchemaWiki Auto-Analyze
 
 on:
   push:
-    branches: [main, master]
+    branches: [master, main]
   workflow_dispatch:
     inputs:
       base_branch:
-        description: 'Base branch to compare against'
+        description: 'Base branch to compare'
         required: false
         default: 'origin/main'
-      update_wiki:
-        description: 'Update wiki after analysis'
-        required: false
-        type: boolean
-        default: true
 
 jobs:
   analyze:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Run SchemaWiki Analyzer
-        id: schemawiki
         run: |
-          # Clone SchemaWiki analyzer
-          git clone https://github.com/vkolyvas/SchemaWiki.git /tmp/schemawiki
-
-          # Run analysis
-          cd /tmp/schemawiki
           python3 schema_analyzer.py --analyze
 
       - name: Update Wiki
-        if: github.event_name == 'push' || github.event.inputs.update_wiki == 'true'
         run: |
-          cd /tmp/schemawiki
           python3 schema_analyzer.py --update --branch "${{ github.event.inputs.base_branch || 'origin/main' }}"
-
-      - name: Commit Wiki Changes
-        if: github.event_name == 'push' || github.event.inputs.update_wiki == 'true'
-        run: |
-          cd /tmp/schemawiki
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-
-          if git diff --quiet HEAD -- .schemaWiki/; then
-            echo "No wiki changes"
-          else
-            git add .schemaWiki/
-            git commit -m "docs: Update SchemaWiki analysis $(date -u +'%Y-%m-%d')"
-            git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} HEAD:main
-          fi

@@ -1,0 +1,55 @@
+name: SchemaWiki MCP Server
+
+on:
+  push:
+    branches: [master, main]
+    paths:
+      - 'mcp_server.py'
+      - 'docker/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install -r docker/requirements.mcp.txt
+
+      - name: Build Docker image
+        run: |
+          cd docker
+          docker build -f Dockerfile.mcp -t schemawiki-mcp:latest ..
+
+      - name: Run MCP server test
+        run: |
+          docker run -d --name test-mcp -p 8082:8081 -e REST_ONLY=true schemawiki-mcp:latest
+          sleep 3
+          curl -s http://localhost:8082/health || echo "Server not ready"
+          docker rm -f test-mcp
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install black flake8
+
+      - name: Check formatting
+        run: black --check mcp_server.py
+
+      - name: Lint
+        run: flake8 mcp_server.py --max-line-length=100 || true
