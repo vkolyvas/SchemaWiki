@@ -86,6 +86,28 @@ Each project gets `.schemaWiki/README.md`:
 
 ---
 
+## GitHub Pages (Optional)
+
+To deploy wiki to GitHub Pages automatically:
+
+```yaml
+- name: Deploy to GitHub Pages
+  run: |
+    python3 schema_analyzer.py --update --github-pages
+  env:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+This creates/updates a `gh-pages` branch with the wiki.
+
+**Enable GitHub Pages:**
+1. Go to: **Repository Settings → Pages**
+2. Source: **Deploy from a branch**
+3. Branch: **gh-pages**
+4. Your wiki will be at: `https://<username>.github.io/<repo>/`
+
+---
+
 ## Full SchemaWiki (Optional)
 
 For full wiki features with MCP server, see:
