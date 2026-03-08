@@ -19,7 +19,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          persist-credentials: false
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -32,16 +31,19 @@ jobs:
       - name: Update Wiki
         run: python3 schema_analyzer.py --update --branch "${{ github.event.inputs.base_branch || 'HEAD~1' }}"
 
-      - name: Prepare docs folder
+      - name: Copy wiki to docs folder
         run: |
           mkdir -p docs
           cp -r .schemaWiki/* docs/
-          echo '<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0; URL=README.md"></head><body><p><a href="README.md">Wiki</a></p></body></html>' > docs/index.html
+          # Don't overwrite existing index if it exists
+          if [ ! -f docs/index.html ] || [ -z "$(cat docs/index.html)" ]; then
+            echo '<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0; URL=README.md"></head><body><p><a href="README.md">Wiki</a></p></body></html>' > docs/index.html
+          fi
 
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./docs
-          publish_branch: gh-pages
-          force_orphan: true
+      - name: Commit Changes
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add .schemaWiki/ docs/
+          git commit -m "docs: Update SchemaWiki $(date -u +'%Y-%m-%d')" || echo "No changes"
+          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} HEAD:main || echo "Push failed"
