@@ -53,8 +53,9 @@ jobs:
 
 ### File 2: `docs/index.html`
 
-Create a simple redirect page:
+Choose one of these templates:
 
+#### Option A: Simple Redirect
 ```html
 <!DOCTYPE html>
 <html>
@@ -65,6 +66,51 @@ Create a simple redirect page:
 <body>
     <p>Redirecting to <a href="README.html">Wiki</a>...</p>
 </body>
+</html>
+```
+
+#### Option B: Styled Landing Page
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project Wiki</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #fff;
+        }
+        .container { text-align: center; }
+        h1 { font-size: 2.5rem; margin-bottom: 20px; color: #00d9ff; }
+        a { color: #00d9ff; text-decoration: none; font-size: 1.2rem; }
+        a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Project Wiki</h1>
+        <p><a href="README.html">View Documentation →</a></p>
+    </div>
+</body>
+</html>
+```
+
+#### Option C: Auto-Redirect (No Page)
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="refresh" content="0; URL=README.html">
+</head>
+<body></body>
 </html>
 ```
 
