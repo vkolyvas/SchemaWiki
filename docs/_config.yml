@@ -1,3 +1,4 @@
 title: SchemaWiki
 markdown: kramdown
+permalink: /:path/:basename.html
 exclude: [index.html]
