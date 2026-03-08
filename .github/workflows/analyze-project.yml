@@ -25,33 +25,25 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Run SchemaWiki Analyzer
-        run: python3 schema_analyzer.py --analyze
-
-      - name: Update Wiki
-        run: python3 schema_analyzer.py --update
-
-      - name: Copy wiki to docs folder
+      - name: Run SchemaWiki
         run: |
+          # Download SchemaWiki analyzer
+          wget -q https://raw.githubusercontent.com/vkolyvas/SchemaWiki/master/schema_analyzer.py
+          chmod +x schema_analyzer.py
+
+          # Run the analyzer
+          python3 schema_analyzer.py --update
+
+          # Copy wiki to docs folder for GitHub Pages
           mkdir -p docs
           cp -r .schemaWiki/* docs/
-          # Don't overwrite existing index if it exists
-          if [ ! -f docs/index.html ] || [ -z "$(cat docs/index.html)" ]; then
-            echo '<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0; URL=README.md"></head><body><p><a href="README.md">Wiki</a></p></body></html>' > docs/index.html
-          fi
 
-      - name: Commit Changes
-        run: |
+          # Configure git and commit changes
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          # Check if there are changes to commit
-          if ! git diff --quiet HEAD -- .schemaWiki/ docs/; then
-            git add .schemaWiki/ docs/
-            git commit -m "docs: Update SchemaWiki $(date -u +'%Y-%m-%d')"
-            # Fetch latest and rebase before push
-            git fetch origin master
-            git rebase origin/master || git merge origin/master || echo "Rebase/merge failed"
-            git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} HEAD:master --force
-          else
-            echo "No wiki changes to commit"
-          fi
+          git add .schemaWiki/ docs/ 2>/dev/null || true
+          git commit -m "docs: Update SchemaWiki $(date -u +'%Y-%m-%d')" || exit 0
+
+      - name: Push Changes
+        run: |
+          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} HEAD:master --force || true

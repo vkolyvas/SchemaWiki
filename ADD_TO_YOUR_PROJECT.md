@@ -27,21 +27,25 @@ jobs:
 
       - name: Run SchemaWiki
         run: |
+          # Download SchemaWiki analyzer
           wget -q https://raw.githubusercontent.com/vkolyvas/SchemaWiki/master/schema_analyzer.py
           chmod +x schema_analyzer.py
+
+          # Run the analyzer
           python3 schema_analyzer.py --update
 
-      - name: Copy to docs
-        run: |
+          # Copy wiki to docs folder for GitHub Pages
           mkdir -p docs
           cp -r .schemaWiki/* docs/
 
-      - name: Commit and Push
-        run: |
+          # Configure git and commit changes
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           git add .schemaWiki/ docs/ 2>/dev/null || true
           git commit -m "docs: Update SchemaWiki" || exit 0
+
+      - name: Push Changes
+        run: |
           git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} HEAD:main --force || true
 ```
 
