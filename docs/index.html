@@ -358,30 +358,170 @@
             text-align: right;
         }
 
-        /* Token Stats */
-        .token-grid {
+        /* Feature Breakdown Diagram */
+        .feature-breakdown {
+            margin: 40px 0;
+        }
+
+        .breakdown-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .breakdown-header h2 {
+            color: #1a1a2e;
+        }
+
+        .legend {
+            display: flex;
+            gap: 20px;
+            font-size: 0.8rem;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 3px;
+        }
+
+        .feature-row {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
+            grid-template-columns: 200px 1fr 100px 100px;
             gap: 15px;
-        }
-
-        .token-stat {
-            background: #f8f9fa;
+            align-items: center;
             padding: 15px;
+            background: #fff;
             border-radius: 8px;
-            text-align: center;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
         }
 
-        .token-stat-value {
-            font-size: 1.5rem;
-            font-weight: bold;
+        .feature-name {
+            font-weight: 500;
+            color: #1a1a2e;
+            font-size: 0.9rem;
+        }
+
+        .feature-type {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            font-weight: 600;
+            margin-left: 8px;
+        }
+
+        .type-feat { background: #e3f2fd; color: #1976d2; }
+        .type-fix { background: #ffebee; color: #c62828; }
+        .type-docs { background: #e8f5e9; color: #2e7d32; }
+        .type-style { background: #fff3e0; color: #ef6c00; }
+        .type-chore { background: #f3e5f5; color: #7b1fa2; }
+
+        .bar-wrapper {
+            position: relative;
+            height: 24px;
+            background: #f0f0f0;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .bar-loc {
+            position: absolute;
+            height: 100%;
+            border-radius: 12px;
+            transition: width 0.5s ease;
+        }
+
+        .metric-value {
+            text-align: right;
+            font-weight: 600;
+            color: #333;
+            font-size: 0.9rem;
+        }
+
+        .metric-tokens {
             color: #00d9ff;
         }
 
-        .token-stat-label {
+        .total-row {
+            background: #1a1a2e;
+            color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+
+        .total-row .feature-name {
+            color: #fff;
+        }
+
+        /* Comparison Chart */
+        .comparison-section {
+            margin-top: 40px;
+        }
+
+        .comparison-chart {
+            display: flex;
+            align-items: flex-end;
+            gap: 15px;
+            height: 200px;
+            padding: 20px;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .chart-bar {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100%;
+        }
+
+        .chart-bar-inner {
+            width: 100%;
+            border-radius: 6px 6px 0 0;
+            transition: height 0.5s ease;
+            position: relative;
+        }
+
+        .chart-bar-loc {
+            background: linear-gradient(180deg, #00d9ff 0%, #0099cc 100%);
+        }
+
+        .chart-bar-tokens {
+            background: linear-gradient(180deg, #ff6b6b 0%, #cc5555 100%);
+        }
+
+        .chart-bar-label {
+            margin-top: 10px;
             font-size: 0.7rem;
-            color: #888;
-            text-transform: uppercase;
+            color: #666;
+            text-align: center;
+            max-width: 80px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .chart-bar-value {
+            position: absolute;
+            top: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #333;
         }
     </style>
 </head>
@@ -534,6 +674,180 @@
                             </div>
                             <span class="bar-value">9</span>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Feature Breakdown Diagram -->
+            <div class="feature-breakdown">
+                <div class="breakdown-header">
+                    <h2>Feature Breakdown</h2>
+                    <div class="legend">
+                        <div class="legend-item">
+                            <div class="legend-dot" style="background: #00d9ff;"></div>
+                            <span>Lines of Code</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-dot" style="background: #ff6b6b;"></div>
+                            <span>Est. Tokens</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Feature 1 -->
+                <div class="feature-row">
+                    <div class="feature-name">
+                        Analytics Dashboard
+                        <span class="feature-type type-feat">feat</span>
+                    </div>
+                    <div class="bar-wrapper">
+                        <div class="bar-loc" style="width: 46%; background: linear-gradient(90deg, #00d9ff, #0099cc);"></div>
+                    </div>
+                    <div class="metric-value">224 LOC</div>
+                    <div class="metric-value metric-tokens">~2.2K</div>
+                </div>
+
+                <!-- Feature 2 -->
+                <div class="feature-row">
+                    <div class="feature-name">
+                        Markdown to HTML
+                        <span class="feature-type type-fix">fix</span>
+                    </div>
+                    <div class="bar-wrapper">
+                        <div class="bar-loc" style="width: 56%; background: linear-gradient(90deg, #00d9ff, #0099cc);"></div>
+                    </div>
+                    <div class="metric-value">271 LOC</div>
+                    <div class="metric-value metric-tokens">~2.7K</div>
+                </div>
+
+                <!-- Feature 3 -->
+                <div class="feature-row">
+                    <div class="feature-name">
+                        HTML Rendering Fix
+                        <span class="feature-type type-fix">fix</span>
+                    </div>
+                    <div class="bar-wrapper">
+                        <div class="bar-loc" style="width: 100%; background: linear-gradient(90deg, #00d9ff, #0099cc);"></div>
+                    </div>
+                    <div class="metric-value">487 LOC</div>
+                    <div class="metric-value metric-tokens">~4.9K</div>
+                </div>
+
+                <!-- Feature 4 -->
+                <div class="feature-row">
+                    <div class="feature-name">
+                        Jekyll Config
+                        <span class="feature-type type-fix">fix</span>
+                    </div>
+                    <div class="bar-wrapper">
+                        <div class="bar-loc" style="width: 3%; background: linear-gradient(90deg, #00d9ff, #0099cc);"></div>
+                    </div>
+                    <div class="metric-value">15 LOC</div>
+                    <div class="metric-value metric-tokens">~150</div>
+                </div>
+
+                <!-- Feature 5 -->
+                <div class="feature-row">
+                    <div class="feature-name">
+                        Landing Page
+                        <span class="feature-type type-feat">feat</span>
+                    </div>
+                    <div class="bar-wrapper">
+                        <div class="bar-loc" style="width: 97%; background: linear-gradient(90deg, #00d9ff, #0099cc);"></div>
+                    </div>
+                    <div class="metric-value">471 LOC</div>
+                    <div class="metric-value metric-tokens">~4.7K</div>
+                </div>
+
+                <!-- Feature 6 -->
+                <div class="feature-row">
+                    <div class="feature-name">
+                        Navigation Links
+                        <span class="feature-type type-feat">feat</span>
+                    </div>
+                    <div class="bar-wrapper">
+                        <div class="bar-loc" style="width: 21%; background: linear-gradient(90deg, #00d9ff, #0099cc);"></div>
+                    </div>
+                    <div class="metric-value">103 LOC</div>
+                    <div class="metric-value metric-tokens">~1.0K</div>
+                </div>
+
+                <!-- Feature 7 -->
+                <div class="feature-row">
+                    <div class="feature-name">
+                        Data Processing Utility
+                        <span class="feature-type type-feat">feat</span>
+                    </div>
+                    <div class="bar-wrapper">
+                        <div class="bar-loc" style="width: 16%; background: linear-gradient(90deg, #00d9ff, #0099cc);"></div>
+                    </div>
+                    <div class="metric-value">79 LOC</div>
+                    <div class="metric-value metric-tokens">~790</div>
+                </div>
+
+                <!-- Feature 8 -->
+                <div class="feature-row">
+                    <div class="feature-name">
+                        Observability Dashboard
+                        <span class="feature-type type-feat">feat</span>
+                    </div>
+                    <div class="bar-wrapper">
+                        <div class="bar-loc" style="width: 10%; background: linear-gradient(90deg, #00d9ff, #0099cc);"></div>
+                    </div>
+                    <div class="metric-value">~50 LOC</div>
+                    <div class="metric-value metric-tokens">~500</div>
+                </div>
+
+                <!-- Total Row -->
+                <div class="total-row feature-row">
+                    <div class="feature-name">Total</div>
+                    <div class="bar-wrapper">
+                        <div class="bar-loc" style="width: 100%; background: linear-gradient(90deg, #ff6b6b, #cc5555);"></div>
+                    </div>
+                    <div class="metric-value">1,700 LOC</div>
+                    <div class="metric-value metric-tokens">~17K</div>
+                </div>
+            </div>
+
+            <!-- Comparison Chart -->
+            <div class="comparison-section">
+                <h2 style="margin-bottom: 20px; color: #1a1a2e;">Token Usage vs Lines of Code</h2>
+                <div class="comparison-chart">
+                    <div class="chart-bar">
+                        <div class="chart-bar-inner chart-bar-loc" style="height: 46%;">
+                            <span class="chart-bar-value">224</span>
+                        </div>
+                        <span class="chart-bar-label">Analytics</span>
+                    </div>
+                    <div class="chart-bar">
+                        <div class="chart-bar-inner chart-bar-loc" style="height: 56%;">
+                            <span class="chart-bar-value">271</span>
+                        </div>
+                        <span class="chart-bar-label">Markdown</span>
+                    </div>
+                    <div class="chart-bar">
+                        <div class="chart-bar-inner chart-bar-loc" style="height: 100%;">
+                            <span class="chart-bar-value">487</span>
+                        </div>
+                        <span class="chart-bar-label">HTML Render</span>
+                    </div>
+                    <div class="chart-bar">
+                        <div class="chart-bar-inner chart-bar-loc" style="height: 97%;">
+                            <span class="chart-bar-value">471</span>
+                        </div>
+                        <span class="chart-bar-label">Landing</span>
+                    </div>
+                    <div class="chart-bar">
+                        <div class="chart-bar-inner chart-bar-loc" style="height: 21%;">
+                            <span class="chart-bar-value">103</span>
+                        </div>
+                        <span class="chart-bar-label">Nav Links</span>
+                    </div>
+                    <div class="chart-bar">
+                        <div class="chart-bar-inner chart-bar-loc" style="height: 16%;">
+                            <span class="chart-bar-value">79</span>
+                        </div>
+                        <span class="chart-bar-label">Data Utility</span>
                     </div>
                 </div>
             </div>
