@@ -18,7 +18,11 @@ from typing import Optional
 
 # Config
 WIKI_DIR = ".schemaWiki"
+FEATURES_DIR = ".schemaWiki/features"
 DEFAULT_BRANCH = "main"
+
+# Threshold for creating new feature page (LOC = lines of code)
+LOC_THRESHOLD = 50  # Changes > 50 LOC create new feature page
 
 
 def run_cmd(cmd: list) -> tuple:
@@ -86,6 +90,69 @@ def get_diff_since(base_branch: str = None) -> list:
     return changes
 
 
+def calculate_loc_changes(base_branch: str = None) -> dict:
+    """Calculate lines of code added/deleted per file."""
+    branch = base_branch or "HEAD~1"  # Default to last commit if no base
+
+    # Try merge-base first, fallback to last commit
+    stdout, _, rc = run_cmd(["git", "merge-base", "HEAD", branch.replace("origin/", "origin/")])
+
+    if rc or not stdout.strip():
+        # Use last commit as base
+        stdout, _, _ = run_cmd(["git", "rev-parse", "HEAD~1"])
+        if rc or not stdout.strip():
+            return {"total_added": 0, "total_deleted": 0, "files": []}
+
+    base = stdout.strip()
+
+    # Use --numstat for accurate numbers (additions, deletions, file)
+    stdout, _, rc = run_cmd(["git", "diff", "--numstat", f"{base}..HEAD"])
+    if rc:
+        return {"total_added": 0, "total_deleted": 0, "files": []}
+
+    total_added = 0
+    total_deleted = 0
+    file_changes = []
+
+    for line in stdout.strip().split("\n"):
+        if line.strip():
+            parts = line.split("\t")
+            if len(parts) >= 3:
+                try:
+                    added = int(parts[0]) if parts[0] != "-" else 0
+                    deleted = int(parts[1]) if parts[1] != "-" else 0
+                    filename = parts[2]
+
+                    total_added += added
+                    total_deleted += deleted
+                    file_changes.append({"file": filename, "added": added, "deleted": deleted})
+                except (ValueError, IndexError):
+                    pass
+
+    return {
+        "total_added": total_added,
+        "total_deleted": total_deleted,
+        "total_changes": total_added + total_deleted,
+        "files": file_changes,
+    }
+
+
+def is_significant_change(loc_data: dict, feature: dict = None) -> bool:
+    """Determine if change is significant enough for new feature page."""
+    total = loc_data.get("total_changes", 0)
+    files_count = len(loc_data.get("files", []))
+
+    # Big if: > 50 LOC or > 5 files changed
+    if total > LOC_THRESHOLD or files_count > 5:
+        return True
+
+    # Also big if it's explicitly a feature/feat commit
+    if feature and feature.get("type") == "feature":
+        return True
+
+    return False
+
+
 def detect_feature_from_commits() -> Optional[dict]:
     """Detect what feature was worked on from commit messages."""
     stdout, _, rc = run_cmd(["git", "log", "--oneline", "-10"])
@@ -112,13 +179,20 @@ def detect_feature_from_commits() -> Optional[dict]:
 
 def analyze_ai_activity() -> dict:
     """Analyze what the AI agent did."""
+    feature = detect_feature_from_commits()
+    loc_data = calculate_loc_changes()
+
     activity = {
         "commit": get_last_commit(),
         "changes": get_diff_since(),
-        "feature": detect_feature_from_commits(),
+        "feature": feature,
         "branch": get_current_branch(),
         "timestamp": datetime.now().isoformat(),
+        "loc": loc_data,
     }
+
+    # Determine if this is a significant change
+    activity["is_significant"] = is_significant_change(loc_data, feature)
 
     # Categorize changes
     categories = {"added": [], "modified": [], "deleted": [], "other": []}
@@ -200,38 +274,141 @@ def update_wiki(activity: dict):
     wiki_path = Path(WIKI_DIR)
     wiki_path.mkdir(exist_ok=True)
 
+    features_path = Path(FEATURES_DIR)
+    features_path.mkdir(exist_ok=True)
+
     readme = wiki_path / "README.md"
 
-    # Get existing content
-    if readme.exists():
-        content = readme.read_text()
+    # Get feature info
+    feature = activity.get("feature", {})
+    loc = activity.get("loc", {})
+    branch = activity.get("branch", "unknown")
+    is_significant = activity.get("is_significant", False)
+
+    # Generate feature name from commit
+    feature_title = "general-changes"
+    if feature:
+        feature_title = feature.get("title", "unknown-feature")
+        # Sanitize for filename
+        feature_title = re.sub(r"[^\w\s-]", "", feature_title)
+        feature_title = re.sub(r"[-\s]+", "-", feature_title).lower()
+
+    # Check if this should create a new feature page
+    if is_significant or feature:
+        feature_file = features_path / f"{feature_title}.md"
+
+        # Build feature content with summary at top
+        feature_content = f"""# {feature.get('title', feature_title).title()}
+
+> **Summary:** {feature.get('title', 'Feature implementation')} - {loc.get('total_changes', 0)} lines changed
+> **Branch:** `{branch}`
+> **Date:** {activity['timestamp']}
+
+---
+
+## Overview
+
+{f'**Type:** {feature.get("type", "implementation").title()}' if feature else ''}
+**Files Changed:** {len(activity.get('changes', []))}
+**Lines Added:** +{loc.get('total_added', 0)}
+**Lines Deleted:** -{loc.get('total_deleted', 0)}
+
+## Changes
+
+"""
+
+        # Add file changes
+        for fc in loc.get("files", []):
+            if fc["added"] > 0 or fc["deleted"] > 0:
+                feature_content += f"- `{fc['file']}`: +{fc['added']} / -{fc['deleted']}\n"
+
+        # Add commit details
+        commit = activity.get("commit", {})
+        if commit.get("subject"):
+            feature_content += f"\n## Commit\n\n**{commit['subject']}**\n"
+            if commit.get("body"):
+                feature_content += f"\n{commit['body']}\n"
+
+        # Add all changes
+        categories = activity.get("categories", {})
+        if categories.get("added"):
+            feature_content += "\n### Added Files\n"
+            for f in categories["added"]:
+                feature_content += f"- `{f}`\n"
+
+        if categories.get("modified"):
+            feature_content += "\n### Modified Files\n"
+            for f in categories["modified"]:
+                feature_content += f"- `{f}`\n"
+
+        if categories.get("deleted"):
+            feature_content += "\n### Deleted Files\n"
+            for f in categories["deleted"]:
+                feature_content += f"- `{f}`\n"
+
+        feature_content += f"\n---\n*Generated by SchemaWiki on {datetime.now().isoformat()}*\n"
+
+        # Write feature file
+        feature_file.write_text(feature_content)
+        print(f"Created/Updated: {feature_file}")
+
+        # Update README with link
+        readme_content = generate_readme_links(features_path)
     else:
-        # Create new wiki with template
-        content = f"""# Project Wiki
+        # Small change - just update general readme
+        readme_content = generate_readme_links(features_path)
+
+    # Update main README
+    readme.write_text(readme_content)
+    print(f"Updated: {readme}")
+    return readme
+
+
+def generate_readme_links(features_path: Path) -> str:
+    """Generate README with links to all feature pages."""
+    # Get all feature files
+    feature_files = sorted(features_path.glob("*.md"))
+
+    features_list = []
+    for f in feature_files:
+        # Try to extract summary from first line
+        content = f.read_text()
+        lines = content.split("\n")
+        title = f.stem.replace("-", " ").title()
+        summary = ""
+        for line in lines:
+            if line.startswith("> **Summary:**"):
+                summary = line.replace("> **Summary:**", "").strip()
+                break
+
+        features_list.append({"file": f"features/{f.name}", "title": title, "summary": summary})
+
+    # Build README
+    readme = f"""# Project Wiki
 
 Generated by SchemaWiki
 **Last Updated:** {datetime.now().isoformat()}
 
 ---
 
-## Sessions
+## Project Overview
+
+This wiki documents all significant features and changes to the project.
 
 """
 
-    # Generate update
-    update = generate_wiki_update(activity)
-    content += update
+    if features_list:
+        readme += "## Features & Changes\n\n"
+        for feat in features_list:
+            readme += f"### [{feat['title']}]({feat['file']})\n"
+            if feat["summary"]:
+                readme += f"> {feat['summary']}\n"
+            readme += "\n"
+    else:
+        readme += "## Recent Changes\n\nNo significant changes detected yet.\n"
 
-    # Update timestamp in header
-    content = re.sub(
-        r"\*\*Last Updated:\*\* .+$",
-        f"**Last Updated:** {datetime.now().isoformat()}",
-        content,
-        flags=re.MULTILINE,
-    )
+    readme += f"\n---\n*Auto-generated by SchemaWiki*\n"
 
-    readme.write_text(content)
-    print(f"Updated: {readme}")
     return readme
 
 
@@ -364,8 +541,22 @@ def show_analysis():
     if feature:
         print(f"\nDetected: {feature['type']} - {feature['title']}")
 
+    # LOC Analysis
+    loc = activity.get("loc", {})
+    print(f"\n--- LOC Analysis ---")
+    print(f"Lines Added: +{loc.get('total_added', 0)}")
+    print(f"Lines Deleted: -{loc.get('total_deleted', 0)}")
+    print(f"Total Changes: {loc.get('total_changes', 0)}")
+
+    # Check significance
+    is_sig = activity.get("is_significant", False)
+    print(
+        f"\n*** SIGNIFICANT CHANGE: {'YES - Will create feature page' if is_sig else 'NO - Will not create new page'} ***"
+    )
+    print(f"(Threshold: {LOC_THRESHOLD}+ LOC or 5+ files)")
+
     categories = activity.get("categories", {})
-    print(f"\nChanges:")
+    print(f"\n--- File Changes ---")
     print(f"  Added: {len(categories.get('added', []))}")
     print(f"  Modified: {len(categories.get('modified', []))}")
     print(f"  Deleted: {len(categories.get('deleted', []))}")
