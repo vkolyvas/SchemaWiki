@@ -108,6 +108,9 @@ The `schema_analyzer.py` is downloaded automatically by the workflow - you don't
 
 ## Troubleshooting
 
+**Action fails to push?**
+- Make sure `permissions: contents: write` is set in the job (see workflow above)
+
 **Wiki not showing?**
 - Check the Actions tab for errors
 - Make sure GitHub Pages is enabled (Step 3 above)
