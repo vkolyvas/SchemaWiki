@@ -49,4 +49,4 @@ jobs:
             git add .schemaWiki/ docs/
             git commit -m "docs: Update SchemaWiki $(date -u +'%Y-%m-%d')"
           fi
-          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} HEAD:main --force-with-lease || echo "Push failed or no changes"
+          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} HEAD:main --force || echo "Push failed or no changes"
