@@ -29,7 +29,7 @@ jobs:
         run: python3 schema_analyzer.py --analyze
 
       - name: Update Wiki
-        run: python3 schema_analyzer.py --update --branch "${{ github.event.inputs.base_branch || 'HEAD~1' }}"
+        run: python3 schema_analyzer.py --update
 
       - name: Copy wiki to docs folder
         run: |
@@ -44,7 +44,9 @@ jobs:
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add .schemaWiki/ docs/
-          git commit -m "docs: Update SchemaWiki $(date -u +'%Y-%m-%d')" || echo "No changes"
-          git pull --rebase origin main
-          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} HEAD:main --force || echo "Push failed"
+          # Check if there are changes to commit
+          if ! git diff --quiet HEAD -- .schemaWiki/ docs/; then
+            git add .schemaWiki/ docs/
+            git commit -m "docs: Update SchemaWiki $(date -u +'%Y-%m-%d')"
+          fi
+          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} HEAD:main --force-with-lease || echo "Push failed or no changes"

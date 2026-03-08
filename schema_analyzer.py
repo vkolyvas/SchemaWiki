@@ -92,18 +92,15 @@ def get_diff_since(base_branch: str = None) -> list:
 
 def calculate_loc_changes(base_branch: str = None) -> dict:
     """Calculate lines of code added/deleted per file."""
-    branch = base_branch or "HEAD~1"  # Default to last commit if no base
+    # Use the parent commit as base (the commit before HEAD)
+    # This gets the changes introduced by the latest commit
+    base = "HEAD~1"
 
-    # Try merge-base first, fallback to last commit
-    stdout, _, rc = run_cmd(["git", "merge-base", "HEAD", branch.replace("origin/", "origin/")])
-
+    # Try to get the base commit
+    stdout, _, rc = run_cmd(["git", "rev-parse", base])
     if rc or not stdout.strip():
-        # Use last commit as base
-        stdout, _, _ = run_cmd(["git", "rev-parse", "HEAD~1"])
-        if rc or not stdout.strip():
-            return {"total_added": 0, "total_deleted": 0, "files": []}
-
-    base = stdout.strip()
+        # If no parent, use HEAD~0 (same as HEAD) - first commit case
+        base = "HEAD"
 
     # Use --numstat for accurate numbers (additions, deletions, file)
     stdout, _, rc = run_cmd(["git", "diff", "--numstat", f"{base}..HEAD"])
