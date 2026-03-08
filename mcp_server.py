@@ -42,6 +42,7 @@ class FeatureRecord(BaseModel):
     version: str = "0.1.0"
     tags: list[str] = []
     plan_content: Optional[str] = None
+    user_id: Optional[str] = None  # Session/user identifier to group features
 
 
 class StepRecord(BaseModel):
@@ -90,6 +91,11 @@ async def list_tools() -> list[Tool]:
                     },
                     "plan": {"type": "string", "description": "Initial plan content"},
                     "why": {"type": "string", "description": "Why this feature is being built"},
+                    "user_id": {
+                        "type": "string",
+                        "description": "User/session identifier to group features (e.g., 'session-1', 'claude-code', 'user@email.com')",
+                    },
+                    "session_id": {"type": "string", "description": "Alias for user_id"},
                 },
                 "required": ["name"],
             },
@@ -273,11 +279,41 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
         raise ValueError(f"Unknown tool: {name}")
 
 
+def get_user_id_from_env() -> str:
+    """Auto-detect user_id/session_id from environment variables."""
+    # Priority order for session identification
+    env_vars = [
+        "CLAUDE_SESSION_ID",  # Claude Code session
+        "SESSION_ID",  # Generic session
+        "XDG_SESSION_ID",  # XDG display session
+        "SSH_CONNECTION",  # SSH session info (contains IP)
+        "SSH_CLIENT",  # SSH client info
+        "TERM_SESSION",  # Terminal session
+        "USER",  # System user
+        "USERNAME",  # System username
+    ]
+
+    for var in env_vars:
+        value = os.environ.get(var)
+        if value:
+            # For SSH vars, extract useful part
+            if var in ("SSH_CONNECTION", "SSH_CLIENT"):
+                parts = value.split()
+                if parts:
+                    return parts[0]  # Return IP address
+            return value
+
+    return "default"
+
+
 async def create_feature(args: dict) -> list[TextContent]:
     """Create a new feature."""
     name = args.get("name")
     if not name:
         raise ValueError("Feature name is required")
+
+    # Auto-detect user_id from environment if not provided
+    user_id = args.get("user_id") or args.get("session_id") or get_user_id_from_env()
 
     feature = {
         "name": name,
@@ -287,6 +323,7 @@ async def create_feature(args: dict) -> list[TextContent]:
         "status": "planning",
         "why": args.get("why", ""),  # Why this feature exists
         "plan": args.get("plan", ""),
+        "user_id": user_id,  # Track which user/session created this
         "implementation": "",
         "steps": [],
         "events": [],
@@ -297,7 +334,10 @@ async def create_feature(args: dict) -> list[TextContent]:
     FEATURES[name] = feature
 
     return [
-        TextContent(type="text", text=json.dumps({"status": "created", "feature": name}, indent=2))
+        TextContent(
+            type="text",
+            text=json.dumps({"status": "created", "feature": name, "user_id": user_id}, indent=2),
+        )
     ]
 
 
@@ -734,10 +774,22 @@ async def search_features(args: dict) -> list[TextContent]:
 
 
 # REST API endpoints
+from fastapi import Request
+
+
 @app.post("/features")
-async def create_feature_api(feature: FeatureRecord):
+async def create_feature_api(feature: FeatureRecord, request: Request):
     """REST API: Create feature."""
     args = feature.model_dump()
+
+    # Auto-detect user_id from headers if not provided
+    if not args.get("user_id") and not args.get("session_id"):
+        # Try headers first
+        user_id = request.headers.get("X-User-ID") or request.headers.get("X-Session-ID")
+        if not user_id:
+            user_id = get_user_id_from_env()
+        args["user_id"] = user_id
+
     result = await create_feature(args)
     return json.loads(result[0].text)
 
@@ -852,32 +904,32 @@ def md_to_html(md: str) -> str:
     html = md
 
     # Headers
-    html = re.sub(r'^### (.+)$', r'<h3>\1</h3>', html, flags=re.MULTILINE)
-    html = re.sub(r'^## (.+)$', r'<h2>\1</h2>', html, flags=re.MULTILINE)
-    html = re.sub(r'^# (.+)$', r'<h1>\1</h1>', html, flags=re.MULTILINE)
+    html = re.sub(r"^### (.+)$", r"<h3>\1</h3>", html, flags=re.MULTILINE)
+    html = re.sub(r"^## (.+)$", r"<h2>\1</h2>", html, flags=re.MULTILINE)
+    html = re.sub(r"^# (.+)$", r"<h1>\1</h1>", html, flags=re.MULTILINE)
 
     # Bold
-    html = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', html)
+    html = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", html)
 
     # Code blocks
-    html = re.sub(r'```(\w*)\n(.*?)```', r'<pre><code>\2</code></pre>', html, flags=re.DOTALL)
+    html = re.sub(r"```(\w*)\n(.*?)```", r"<pre><code>\2</code></pre>", html, flags=re.DOTALL)
 
     # Inline code
-    html = re.sub(r'`([^`]+)`', r'<code>\1</code>', html)
+    html = re.sub(r"`([^`]+)`", r"<code>\1</code>", html)
 
     # Lists
-    html = re.sub(r'^- (.+)$', r'<li>\1</li>', html, flags=re.MULTILINE)
-    html = re.sub(r'^(\d+)\. (.+)$', r'<li>\2</li>', html, flags=re.MULTILINE)
+    html = re.sub(r"^- (.+)$", r"<li>\1</li>", html, flags=re.MULTILINE)
+    html = re.sub(r"^(\d+)\. (.+)$", r"<li>\2</li>", html, flags=re.MULTILINE)
 
     # Wrap consecutive li in ul
-    html = re.sub(r'(<li>.*?</li>\n?)+', r'<ul>\g<0></ul>', html)
+    html = re.sub(r"(<li>.*?</li>\n?)+", r"<ul>\g<0></ul>", html)
 
     # Blockquotes
-    html = re.sub(r'^> (.+)$', r'<blockquote>\1</blockquote>', html, flags=re.MULTILINE)
+    html = re.sub(r"^> (.+)$", r"<blockquote>\1</blockquote>", html, flags=re.MULTILINE)
 
     # Paragraphs
-    html = re.sub(r'\n\n+', '\n', html)
-    lines = html.split('\n')
+    html = re.sub(r"\n\n+", "\n", html)
+    lines = html.split("\n")
     result = []
     in_pre = False
     in_ul = False
@@ -888,29 +940,29 @@ def md_to_html(md: str) -> str:
         if not line:
             if in_pre or in_ul or in_blockquote:
                 if in_pre:
-                    result.append('</code></pre>')
+                    result.append("</code></pre>")
                     in_pre = False
                 if in_ul:
-                    result.append('</ul>')
+                    result.append("</ul>")
                     in_ul = False
                 if in_blockquote:
-                    result.append('</blockquote>')
+                    result.append("</blockquote>")
                     in_blockquote = False
             continue
 
-        if line.startswith('<pre>') or line.startswith('<ul>') or line.startswith('<blockquote>'):
+        if line.startswith("<pre>") or line.startswith("<ul>") or line.startswith("<blockquote>"):
             result.append(line)
             continue
-        if '</pre>' in line or '</ul>' in line or '</blockquote>' in line:
+        if "</pre>" in line or "</ul>" in line or "</blockquote>" in line:
             result.append(line)
             continue
 
-        if not line.startswith('<') and not line.startswith('#'):
-            line = f'<p>{line}</p>'
+        if not line.startswith("<") and not line.startswith("#"):
+            line = f"<p>{line}</p>"
 
         result.append(line)
 
-    return '\n'.join(result)
+    return "\n".join(result)
 
 
 @app.get("/wikis")
@@ -969,11 +1021,20 @@ async def health():
 
 
 def generate_project_wiki() -> str:
-    """Generate project index wiki page."""
+    """Generate project index wiki page grouped by user/session."""
+    from collections import defaultdict
+
+    # Group features by user_id
+    users = defaultdict(list)
+    for name, feature in FEATURES.items():
+        user_id = feature.get("user_id", "default")
+        users[user_id].append((name, feature))
+
     lines = [
         f"# {PROJECT_NAME}",
         "",
         f"**Total Features:** {len(FEATURES)}",
+        f"**Total Sessions:** {len(users)}",
         "",
     ]
 
@@ -985,17 +1046,23 @@ def generate_project_wiki() -> str:
         lines.append(f"**GitHub:** [{PROJECT_GITHUB_URL}]({PROJECT_GITHUB_URL})")
         lines.append("")
 
-    lines.extend([
-        "## All Features",
-        "",
-    ])
+    # Group by user/session
+    for user_id, features in users.items():
+        user_label = f"Session: {user_id}" if user_id != "default" else "Default Session"
+        lines.extend(
+            [
+                f"## {user_label}",
+                "",
+            ]
+        )
 
-    for name, feature in FEATURES.items():
-        why = feature.get("why", "No description")
-        why_short = why[:80] + "..." if len(why) > 80 else why
-        lines.append(f"### [{name}](/wiki/{name})")
-        lines.append(f"_{why_short}_")
-        lines.append("")
+        for name, feature in features:
+            why = feature.get("why", "No description")
+            why_short = why[:80] + "..." if len(why) > 80 else why
+            status = feature.get("status", "unknown")
+            lines.append(f"### [{name}](/wiki/{name}) [{status}]")
+            lines.append(f"_{why_short}_")
+            lines.append("")
 
     return "\n".join(lines)
 
