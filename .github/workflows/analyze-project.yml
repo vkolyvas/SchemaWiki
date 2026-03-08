@@ -29,36 +29,20 @@ jobs:
           python-version: '3.11'
 
       - name: Run SchemaWiki Analyzer
-        run: |
-          python3 schema_analyzer.py --analyze
+        run: python3 schema_analyzer.py --analyze
 
       - name: Update Wiki
-        run: |
-          python3 schema_analyzer.py --update --branch "${{ github.event.inputs.base_branch || 'origin/main' }}"
+        run: python3 schema_analyzer.py --update --branch "${{ github.event.inputs.base_branch || 'origin/main' }}"
 
       - name: Copy to docs/ for GitHub Pages
         run: |
-          # Create docs directory
           mkdir -p docs
-
-          # Copy all wiki files to docs/
           cp -r .schemaWiki/* docs/
 
-          # Create index.html redirect if it doesn't exist
+      - name: Create index.html redirect
+        run: |
           if [ ! -f docs/index.html ]; then
-            cat > docs/index.html << 'EOF'
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <meta http-equiv="refresh" content="0; URL=README.md">
-    <title>SchemaWiki - Redirecting...</title>
-</head>
-<body>
-    <p>Redirecting to <a href="README.md">Project Wiki</a>...</p>
-</body>
-</html>
-EOF
+            echo '<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="0; URL=README.md"><title>SchemaWiki</title></head><body><p>Redirecting to <a href="README.md">Project Wiki</a>...</p></body></html>' > docs/index.html
           fi
 
       - name: Commit Wiki Changes
@@ -66,7 +50,6 @@ EOF
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
 
-          # Check if there are any changes
           if git diff --quiet HEAD -- .schemaWiki/ docs/ 2>/dev/null; then
             echo "No wiki changes to commit"
           else
