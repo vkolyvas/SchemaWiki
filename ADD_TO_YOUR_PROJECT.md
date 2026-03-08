@@ -3,6 +3,11 @@
 ## Quick Start (Only 2 Files Needed)
 
 ### Option 1: GitHub Action
+- name: Run SchemaWiki
+    run: |
+      wget -q https://raw.githubusercontent.com/vkolyvas/SchemaWiki/master/schema_analyzer.py
+      chmod +x schema_analyzer.py
+      python3 schema_analyzer.py --update
 
 Create `.github/workflows/schemawiki.yml`:
 
