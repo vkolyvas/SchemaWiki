@@ -1,0 +1,3 @@
+title: SchemaWiki
+markdown: kramdown
+exclude: [index.html]
