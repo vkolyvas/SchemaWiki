@@ -48,5 +48,10 @@ jobs:
           if ! git diff --quiet HEAD -- .schemaWiki/ docs/; then
             git add .schemaWiki/ docs/
             git commit -m "docs: Update SchemaWiki $(date -u +'%Y-%m-%d')"
+            # Fetch latest and rebase before push
+            git fetch origin main
+            git rebase origin/main || git merge origin/main || echo "Rebase/merge failed"
+            git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} HEAD:main --force
+          else
+            echo "No wiki changes to commit"
           fi
-          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} HEAD:main --force || echo "Push failed or no changes"
