@@ -36,21 +36,41 @@ jobs:
         run: |
           python3 schema_analyzer.py --update --branch "${{ github.event.inputs.base_branch || 'origin/main' }}"
 
-      - name: Deploy to GitHub Pages
-        if: github.event_name == 'workflow_dispatch' && (github.event.inputs.github_pages == 'true' || github.event.inputs.github_pages == true)
+      - name: Copy to docs/ for GitHub Pages
         run: |
-          python3 schema_analyzer.py --update --github-pages --pages-branch gh-pages
+          # Create docs directory
+          mkdir -p docs
+
+          # Copy all wiki files to docs/
+          cp -r .schemaWiki/* docs/
+
+          # Create index.html redirect if it doesn't exist
+          if [ ! -f docs/index.html ]; then
+            cat > docs/index.html << 'EOF'
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="refresh" content="0; URL=README.md">
+    <title>SchemaWiki - Redirecting...</title>
+</head>
+<body>
+    <p>Redirecting to <a href="README.md">Project Wiki</a>...</p>
+</body>
+</html>
+EOF
+          fi
 
       - name: Commit Wiki Changes
-        if: github.event_name == 'push'
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
 
-          if git diff --quiet HEAD -- .schemaWiki/; then
+          # Check if there are any changes
+          if git diff --quiet HEAD -- .schemaWiki/ docs/ 2>/dev/null; then
             echo "No wiki changes to commit"
           else
-            git add .schemaWiki/
+            git add .schemaWiki/ docs/
             git commit -m "docs: Update SchemaWiki $(date -u +'%Y-%m-%d')" || echo "Nothing to commit"
             git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} HEAD:main || echo "Push failed"
           fi
