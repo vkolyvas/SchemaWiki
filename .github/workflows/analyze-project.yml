@@ -11,12 +11,17 @@ on:
         default: 'origin/main'
 
 jobs:
-  analyze:
+  analyze-and-commit:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
       - name: Run SchemaWiki Analyzer
         run: |
@@ -25,3 +30,16 @@ jobs:
       - name: Update Wiki
         run: |
           python3 schema_analyzer.py --update --branch "${{ github.event.inputs.base_branch || 'origin/main' }}"
+
+      - name: Commit Wiki Changes
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+
+          if git diff --quiet HEAD -- .schemaWiki/; then
+            echo "No wiki changes to commit"
+          else
+            git add .schemaWiki/
+            git commit -m "docs: Update SchemaWiki $(date -u +'%Y-%m-%d')" || echo "No changes to commit"
+            git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} HEAD:main || echo "Push failed"
+          fi
