@@ -46,4 +46,5 @@ jobs:
           git config --local user.name "github-actions[bot]"
           git add .schemaWiki/ docs/
           git commit -m "docs: Update SchemaWiki $(date -u +'%Y-%m-%d')" || echo "No changes"
-          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} HEAD:main || echo "Push failed"
+          git pull --rebase origin main
+          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} HEAD:main --force || echo "Push failed"
