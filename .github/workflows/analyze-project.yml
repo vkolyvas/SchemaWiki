@@ -8,20 +8,18 @@ on:
       base_branch:
         description: 'Base branch to compare'
         required: false
-        default: 'origin/main'
-      github_pages:
-        description: 'Deploy to GitHub Pages'
-        type: boolean
-        required: false
-        default: true
+        default: 'HEAD~1'
 
 jobs:
   analyze-and-commit:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -32,30 +30,18 @@ jobs:
         run: python3 schema_analyzer.py --analyze
 
       - name: Update Wiki
-        run: python3 schema_analyzer.py --update --branch "${{ github.event.inputs.base_branch || 'origin/main' }}"
+        run: python3 schema_analyzer.py --update --branch "${{ github.event.inputs.base_branch || 'HEAD~1' }}"
 
-      - name: Commit Wiki to separate branch
+      - name: Prepare docs folder
         run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
+          mkdir -p docs
+          cp -r .schemaWiki/* docs/
+          echo '<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0; URL=README.md"></head><body><p><a href="README.md">Wiki</a></p></body></html>' > docs/index.html
 
-          # Create wiki branch if needed
-          git checkout --orphan wiki 2>/dev/null || true
-
-          # Remove everything except .schemaWiki
-          git rm -rf . 2>/dev/null || true
-          rm -rf .github .gitignore 2>/dev/null || true
-
-          # Copy wiki
-          cp -r .schemaWiki/* .
-
-          # Create index.html redirect
-          echo '<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0; URL=README.md"></head><body><p><a href="README.md">Wiki</a></p></body></html>' > index.html
-
-          # Commit and push to wiki branch
-          git add -A
-          git commit -m "Wiki $(date -u +'%Y-%m-%d')" || echo "No changes"
-          git push --force https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} wiki:gh-pages || echo "Push failed"
-
-          # Go back to main
-          git checkout master
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs
+          publish_branch: gh-pages
+          force_orphan: true
