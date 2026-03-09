@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Incoming Callers: create_feature | CodeGraphContext</title>
+    
+    <!-- Modern Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <!-- Vis Network Library -->
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    
+    <style type="text/css">
+        :root {
+            --primary: #6366f1;
+            --primary-glow: rgba(99, 102, 241, 0.4);
+            --bg-dark: #0f172a;
+            --bg-card: rgba(30, 41, 59, 0.7);
+            --border: rgba(255, 255, 255, 0.1);
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+            --accent: #818cf8;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-dark);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(129, 140, 248, 0.1) 0px, transparent 50%);
+            color: var(--text-main);
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        /* --- Header & Glassmorphism --- */
+        .header {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            padding: 12px 24px;
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+            animation: slideDown 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes slideDown {
+            from { transform: translateY(-100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .logo-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-icon {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 18px;
+            box-shadow: 0 0 15px var(--primary-glow);
+        }
+
+        .logo-text {
+            font-size: 1.25rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            background: linear-gradient(to right, #fff, #94a3b8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .viz-title {
+            font-size: 0.9rem;
+            color: var(--text-dim);
+            font-weight: 400;
+            padding-left: 12px;
+            border-left: 1px solid var(--border);
+            margin-left: 12px;
+        }
+
+        .stats-group {
+            display: flex;
+            gap: 24px;
+        }
+
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+
+        .stat-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-dim);
+        }
+
+        .stat-count {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--accent);
+        }
+
+        .search-container {
+            position: fixed;
+            top: 100px;
+            left: 20px;
+            z-index: 1000;
+            width: 200px;
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            padding: 12px;
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            animation: slideLeft 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes slideLeft {
+            from { transform: translateX(-100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .search-input {
+            background: rgba(0,0,0,0.2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 8px 12px;
+            color: white;
+            font-family: inherit;
+            font-size: 0.85rem;
+            outline: none;
+            width: 100%;
+        }
+
+        .search-input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px var(--primary-glow);
+        }
+
+        /* --- Main Network Container --- */
+        #mynetwork {
+            width: 100%;
+            height: 100vh;
+            cursor: grab;
+        }
+
+        #mynetwork:active {
+            cursor: grabbing;
+        }
+
+        /* --- Side Info Panel --- */
+        .info-panel {
+            position: fixed;
+            top: 100px;
+            right: 20px;
+            width: 340px;
+            max-height: calc(100vh - 140px);
+            background: var(--bg-card);
+            backdrop-filter: blur(16px);
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            padding: 24px;
+            z-index: 900;
+            transform: translateX(400px);
+            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            overflow-y: auto;
+            box-shadow: -8px 0 32px rgba(0,0,0,0.2);
+        }
+
+        .info-panel.active {
+            transform: translateX(0);
+        }
+
+        .info-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 12px;
+        }
+
+        .node-type-badge {
+            font-size: 0.7rem;
+            padding: 4px 10px;
+            border-radius: 20px;
+            text-transform: uppercase;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+        }
+
+        .node-name {
+            font-size: 1.4rem;
+            font-weight: 700;
+            word-break: break-all;
+            margin-top: 8px;
+        }
+
+        .info-section {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .info-label {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+        }
+
+        .info-value {
+            font-size: 0.9rem;
+            color: var(--text-main);
+            font-family: 'JetBrains Mono', monospace;
+            word-break: break-all;
+            background: rgba(0,0,0,0.2);
+            padding: 8px;
+            border-radius: 8px;
+        }
+
+        /* --- Legend --- */
+        .legend {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            padding: 20px;
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            z-index: 1000;
+            width: 200px;
+            animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .legend-title {
+            font-weight: 700;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+            color: var(--text-dim);
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 8px 0;
+            font-size: 0.85rem;
+            color: #ccc;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .legend-item:hover {
+            color: #fff;
+        }
+
+        .legend-color {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            box-shadow: 0 0 8px currentColor;
+        }
+
+        /* --- Controls & Utilities --- */
+        .controls {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.4);
+            padding: 8px 16px;
+            border-radius: 30px;
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            z-index: 800;
+        }
+
+        .close-btn {
+            cursor: pointer;
+            color: var(--text-dim);
+            transition: color 0.2s;
+        }
+
+        .close-btn:hover { color: #fff; }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo-group">
+            <div class="logo-icon">C</div>
+            <div class="logo-text">CodeGraphContext</div>
+            <div class="viz-title">Incoming Callers: create_feature</div>
+        </div>
+        <div class="stats-group">
+            <div class="stat-item">
+                <span class="stat-label">Nodes</span>
+                <span class="stat-count">6</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Edges</span>
+                <span class="stat-count">5</span>
+            </div>
+        </div>
+    </div>
+
+    <div id="info-panel" class="info-panel">
+        <div class="info-header">
+            <div id="node-badge" class="node-type-badge">TYPE</div>
+            <div class="close-btn" onclick="closePanel()">✕</div>
+        </div>
+        <div id="node-name" class="node-name">Symbol Name</div>
+        
+        <div class="info-section">
+            <span class="info-label">File Path</span>
+            <div id="node-path" class="info-value">/path/to/file.py</div>
+        </div>
+        
+        <div class="info-section">
+            <span class="info-label">Context</span>
+            <div id="node-context" class="info-value">None</div>
+        </div>
+
+        <div id="extra-info"></div>
+    </div>
+
+    <div class="search-container">
+        <div class="legend-title" style="margin-bottom: 4px;">Quick Search</div>
+        <input type="text" id="node-search" class="search-input" placeholder="Find symbol...">
+    </div>
+
+    <div id="mynetwork"></div>
+
+    <div class="legend">
+        <div class="legend-title">Entity Types</div>
+        <div id="legend-items"></div>
+    </div>
+
+    <div class="controls">
+        Scroll to zoom • Click to inspect • Drag to explore
+    </div>
+
+    <script type="text/javascript">
+        const nodesData = [{"id":"central_create_feature","label":"create_feature","group":"Target","title":"Called: create_feature","color":{"background":"#FEE2E2","border":"#EF4444","highlight":{"background":"#F87171","border":"#EF4444"},"hover":{"background":"#F87171","border":"#EF4444"}},"size":30,"font":{"size":16,"color":"#ffffff"}},{"id":"node_create_feature_0","label":"create_feature","group":"Caller","title":"create_feature\nFile: /home/onchain3r/base/CodeGraphContext/SchemaWiki/api/routes_features.py\nLine: 30","color":{"background":"#CFFAFE","border":"#06B6D4","highlight":{"background":"#22D3EE","border":"#06B6D4"},"hover":{"background":"#22D3EE","border":"#06B6D4"}}},{"id":"node_main_1","label":"main","group":"Caller","title":"main\nFile: /home/onchain3r/base/CodeGraphContext/SchemaWiki/cli.py\nLine: 135","color":{"background":"#CFFAFE","border":"#06B6D4","highlight":{"background":"#22D3EE","border":"#06B6D4"},"hover":{"background":"#22D3EE","border":"#06B6D4"}}},{"id":"node_call_tool_2","label":"call_tool","group":"Caller","title":"call_tool\nFile: /home/onchain3r/base/CodeGraphContext/SchemaWiki/mcp_server.py\nLine: 258","color":{"background":"#CFFAFE","border":"#06B6D4","highlight":{"background":"#22D3EE","border":"#06B6D4"},"hover":{"background":"#22D3EE","border":"#06B6D4"}}},{"id":"node_create_feature_api_3","label":"create_feature_api","group":"Caller","title":"create_feature_api\nFile: /home/onchain3r/base/CodeGraphContext/SchemaWiki/mcp_server.py\nLine: 781","color":{"background":"#CFFAFE","border":"#06B6D4","highlight":{"background":"#22D3EE","border":"#06B6D4"},"hover":{"background":"#22D3EE","border":"#06B6D4"}}},{"id":"node_main_4","label":"main","group":"Caller","title":"main\nFile: /home/onchain3r/base/CodeGraphContext/SchemaWiki/wiki_tool.py\nLine: 352","color":{"background":"#CFFAFE","border":"#06B6D4","highlight":{"background":"#22D3EE","border":"#06B6D4"},"hover":{"background":"#22D3EE","border":"#06B6D4"}}}];
+        const edgesData = [{"from":"node_create_feature_0","to":"central_create_feature","label":"calls","arrows":"to"},{"from":"node_main_1","to":"central_create_feature","label":"calls","arrows":"to"},{"from":"node_call_tool_2","to":"central_create_feature","label":"calls","arrows":"to"},{"from":"node_create_feature_api_3","to":"central_create_feature","label":"calls","arrows":"to"},{"from":"node_main_4","to":"central_create_feature","label":"calls","arrows":"to"}];
+
+        const nodes = new vis.DataSet(nodesData);
+        const edges = new vis.DataSet(edgesData);
+
+        const container = document.getElementById('mynetwork');
+        const data = { nodes, edges };
+        
+        const options = {
+            nodes: {
+                shape: 'dot',
+                size: 24,
+                font: {
+                    color: '#e2e8f0',
+                    size: 14,
+                    face: 'Outfit'
+                },
+                borderWidth: 2,
+                shadow: {
+                    enabled: true,
+                    color: 'rgba(0,0,0,0.5)',
+                    size: 10,
+                    x: 0,
+                    y: 4
+                }
+            },
+            edges: {
+                width: 1.5,
+                color: {
+                    color: 'rgba(148, 163, 184, 0.3)',
+                    highlight: '#6366f1',
+                    hover: '#818cf8'
+                },
+                font: {
+                    size: 11,
+                    face: 'Outfit',
+                    color: '#94a3b8',
+                    strokeWidth: 0
+                },
+                smooth: {
+                    type: 'cubicBezier',
+                    forceDirection: 'none',
+                    roundness: 0.5
+                },
+                arrows: {
+                    to: {
+                        enabled: true,
+                        scaleFactor: 0.5
+                    }
+                }
+            },
+            interaction: {
+                hover: true,
+                tooltipDelay: 300,
+                hideEdgesOnDrag: true,
+                navigationButtons: false,
+                keyboard: true
+            },
+            physics: {
+                enabled: true,
+                stabilization: {
+                    enabled: true,
+                    iterations: 150
+                },
+                barnesHut: {
+                    gravitationalConstant: -2000,
+                    centralGravity: 0.3,
+                    springLength: 120,
+                    springConstant: 0.04,
+                    damping: 0.09
+                }
+            },
+            
+            layout: {
+                improvedLayout: true
+            },
+            physics: {
+                enabled: true,
+                forceAtlas2Based: {
+                    gravitationalConstant: -50,
+                    centralGravity: 0.01,
+                    springLength: 150,
+                    springConstant: 0.08,
+                    damping: 0.4
+                },
+                maxVelocity: 50,
+                solver: 'forceAtlas2Based',
+                timestep: 0.35,
+                stabilization: {
+                    enabled: true,
+                    iterations: 200,
+                    updateInterval: 25
+                }
+            }
+        
+        };
+
+        const network = new vis.Network(container, data, options);
+
+        // Sidebar logic
+        function closePanel() {
+            document.getElementById('info-panel').classList.remove('active');
+        }
+
+        network.on('click', function(params) {
+            if (params.nodes.length > 0) {
+                const nodeId = params.nodes[0];
+                const node = nodes.get(nodeId);
+                const panel = document.getElementById('info-panel');
+                
+                document.getElementById('node-name').textContent = node.label;
+                document.getElementById('node-badge').textContent = node.group;
+                document.getElementById('node-badge').style.backgroundColor = node.color.border + '22';
+                document.getElementById('node-badge').style.color = node.color.border;
+                document.getElementById('node-badge').style.border = `1px solid ${node.color.border}`;
+                
+                // Parse tooltip for extra info
+                const tooltipText = node.title || "";
+                const lines = tooltipText.split('\n');
+                let path = "Unknown";
+                let context = "None";
+                
+                lines.forEach(l => {
+                    if (l.startsWith('File:')) path = l.replace('File:', '').trim();
+                    if (l.startsWith('Line:')) context = 'Line ' + l.replace('Line:', '').trim();
+                });
+                
+                document.getElementById('node-path').textContent = path;
+                document.getElementById('node-context').textContent = context;
+                
+                panel.classList.add('active');
+
+                // Visual highlight
+                const connectedNodes = network.getConnectedNodes(nodeId);
+                nodes.forEach(n => {
+                    nodes.update({id: n.id, opacity: 0.15});
+                });
+                nodes.update({id: nodeId, opacity: 1});
+                connectedNodes.forEach(id => {
+                    nodes.update({id: id, opacity: 1});
+                });
+            } else {
+                closePanel();
+                nodes.forEach(n => {
+                    nodes.update({id: n.id, opacity: 1});
+                });
+            }
+        });
+
+        // Build legend from unique groups
+        const groups = [...new Set(nodesData.map(n => n.group))];
+        const legendContainer = document.getElementById('legend-items');
+        groups.forEach(group => {
+            const node = nodesData.find(n => n.group === group);
+            const color = node?.color?.border || '#94a3b8';
+            
+            const item = document.createElement('div');
+            item.className = 'legend-item';
+            item.innerHTML = `
+                <div class="legend-color" style="background: ${color}; color: ${color}"></div>
+                <span>${group}</span>
+            `;
+            
+            item.onclick = () => {
+                // Highlight nodes of this group
+                nodes.forEach(n => {
+                    nodes.update({id: n.id, opacity: n.group === group ? 1 : 0.15});
+                });
+            };
+            
+            legendContainer.appendChild(item);
+        });
+
+        // Search logic
+        const searchInput = document.getElementById('node-search');
+        searchInput.oninput = (e) => {
+            const term = e.target.value.toLowerCase();
+            if (!term) {
+                nodes.forEach(n => nodes.update({id: n.id, opacity: 1}));
+                return;
+            }
+            
+            nodes.forEach(n => {
+                const matches = n.label.toLowerCase().includes(term);
+                nodes.update({id: n.id, opacity: matches ? 1 : 0.1});
+            });
+        };
+    </script>
+</body>
+</html>
