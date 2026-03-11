@@ -11,6 +11,8 @@ AI-native feature documentation and engineering memory system that enables codin
 - **Search**: Text search across features and file contents
 - **Agent CLI**: Command-line interface for interacting with SchemaWiki
 
+<img width="1382" height="926" alt="Image" src="https://github.com/user-attachments/assets/bcd7bca7-9832-45f2-b723-0f946fd581a5" />
+
 ## Quick Start
 
 ### Prerequisites
